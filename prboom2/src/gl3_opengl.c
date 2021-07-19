@@ -19,7 +19,7 @@
 #include "lprintf.h"
 
 // Function pointer definitions
-#define DEFEXTFUNC(_type, _name, ...) \
+#define DEFEXTFUNC(_type, _name, ...)           \
   gl3_ ## _name ## _t gl3_ ## _name = NULL;
 GL3_EXTFUNCS;
 #undef DEFEXTFUNC
@@ -27,10 +27,11 @@ GL3_EXTFUNCS;
 void gl3_InitOpenGL(void)
 {
   // Load functions
-#define DEFEXTFUNC(_type, _name, ...) \
-  if (!gl3_ ## _name) {\
-    gl3_ ## _name = SDL_GL_GetProcAddress(#_name);\
-    if (!gl3_ ## _name) I_Error("gl3_InitOpenGL: Failed to load %s!\n", #_name);\
+#define DEFEXTFUNC(_type, _name, ...)                           \
+  if (!gl3_ ## _name) {                                         \
+    gl3_ ## _name = SDL_GL_GetProcAddress(#_name);              \
+    if (!gl3_ ## _name)                                         \
+      I_Error("gl3_InitOpenGL: Failed to load %s!\n", #_name);  \
   }
   GL3_EXTFUNCS;
 #undef DEFEXTFUNC

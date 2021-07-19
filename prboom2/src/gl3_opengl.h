@@ -25,25 +25,6 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 
-// Dunno if I wanna include the opengl header when including SDL_opengl or not
-
-// Descriptive #if 0
-#ifdef unsure_whether_to_include_gl_h_or_not
-
-// Include OpenGL header
-#if defined(__MACOSX__)
-#include <OpenGL/gl.h>
-
-#elif defined(__MACOS__)
-#include <gl.h>
-
-#else
-#include <GL/gl.h>
-
-#endif
-
-#endif // unsure_whether_to_include_gl_h_or_not
-
 #include "doomtype.h"
 
 // Extension function definition
@@ -51,7 +32,7 @@
 // extension functions
 //
 // Make sure to #undef DEFEXTFUNC after using this macro
-#define GL3_EXTFUNCS \
+#define GL3_EXTFUNCS                                                    \
   DEFEXTFUNC(void, glDrawElements, GLenum, GLsizei, GLenum, const void*)
 
 // Extension function typedefs
