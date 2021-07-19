@@ -374,6 +374,9 @@ function(AddGameExecutable TARGET SOURCES)
             gl_texture.c
             gl_vertex.c
             gl_wipe.c
+
+            # OpenGL 3.3
+            gl3_opengl.c
         )
     endif()
 
