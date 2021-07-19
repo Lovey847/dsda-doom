@@ -3190,6 +3190,7 @@ static const char *videomodes[] = {
   "8bit", "32bit",
 #ifdef GL_DOOM
   "OpenGL",
+  "OpenGL3",
 #endif
   NULL};
 

@@ -1107,6 +1107,8 @@ video_mode_t I_GetModeFromString(const char *modestr)
     mode = VID_MODEGL;
   } else if (!stricmp(modestr,"OpenGL")) {
     mode = VID_MODEGL;
+  } else if (!stricmp(modestr,"OpenGL3")) {
+    mode = VID_MODEGL3;
   } else {
     mode = VID_MODE8;
   }

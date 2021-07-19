@@ -984,6 +984,23 @@ void V_InitMode(video_mode_t mode) {
       V_DrawLineWu = WRAP_gld_DrawLine;
       current_videomode = VID_MODEGL;
       break;
+  case VID_MODEGL3:
+    // TODO: This is, temporarily, just a duplicate of OpenGL
+    //       Actually implement 3.3!
+    lprintf(LO_INFO, "V_InitMode: using OpenGL 3.3 video mode\n");
+    V_CopyRect = WRAP_gld_CopyRect;
+    V_FillRect = WRAP_gld_FillRect;
+    V_DrawNumPatch = WRAP_gld_DrawNumPatch;
+    V_DrawNumPatchPrecise = WRAP_gld_DrawNumPatchPrecise;
+    V_FillFlat = WRAP_gld_FillFlat;
+    V_FillPatch = WRAP_gld_FillPatch;
+    V_DrawBackground = WRAP_gld_DrawBackground;
+    V_PlotPixel = V_PlotPixelGL;
+    V_PlotPixelWu = V_PlotPixelWuGL;
+    V_DrawLine = WRAP_gld_DrawLine;
+    V_DrawLineWu = WRAP_gld_DrawLine;
+    current_videomode = VID_MODEGL;
+    break;
 #endif
   }
   R_FilterInit();
