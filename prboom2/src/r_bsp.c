@@ -422,6 +422,9 @@ static void R_AddLine (seg_t *line)
     gld_AddWall(curline);
 
     return;
+  } else if (V_GL3Active()) {
+    // TODO: Add something here!!!
+    return;
   }
 #endif
 

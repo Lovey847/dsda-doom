@@ -16,53 +16,84 @@
  */
 
 #include "gl3_main.h"
-#include "r_defs.h"
-#include "gl_struct.h"
+#include "i_video.h"
+#include "lprintf.h"
+
+void gl3_Init(int width, int height) {
+  const char *vendor, *renderer, *version, *glslVer;
+
+  // Load extension functions
+  if (!gl3_InitOpenGL()) I_Error("Couldn't load extension functions!");
+
+  // Set clear color
+  glClearColor(1.f, 0.f, 0.f, 1.f);
+
+  // Log opengl information
+  vendor = glGetString(GL_VENDOR);
+  renderer = glGetString(GL_RENDERER);
+  version = glGetString(GL_VERSION);
+  glslVer = glGetString(GL_SHADING_LANGUAGE_VERSION);
+
+  lprintf(LO_INFO,
+          "gl3_Init: OpenGL context information:\n"
+          "            Vendor:       %s\n"
+          "            Renderer:     %s\n"
+          "            Version:      %s\n"
+          "            GLSL Version: %s\n",
+
+          vendor, renderer, version, glslVer);
+}
+
+void gl3_Start(void) {
+  glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void gl3_Finish(void) {
+  SDL_GL_SwapWindow(sdl_window);
+}
 
 // TODO: Right now, these are wrappers for gld functions.
 //       Implement these at some point!
 void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color) {
-  gld_FillBlock(x, y, width, height, color);
+
 }
 
 void gl3_DrawBackground(const char *flatname, int n) {
-  gld_FillFlatName(flatname, 0, 0, SCREENWIDTH, SCREENHEIGHT, VPT_NONE);
+
 }
 
 void gl3_FillFlat(int lump, int n, int x, int y, int width, int height,
                   enum patch_translation_e flags)
 {
-  gld_FillFlat(lump, x, y, width, height, flags);
+
 }
 
 void gl3_FillPatch(int lump, int n, int x, int y, int width, int height,
                    enum patch_translation_e flags)
 {
-  gld_FillPatch(lump, x, y, width, height, flags);
+
 }
 
 void gl3_DrawNumPatch(int x, int y, int scrn, int lump, int cm,
                       enum patch_translation_e flags)
 {
-  gld_DrawNumPatch(x, y, lump, cm, flags);
+
 }
 
 void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
                              enum patch_translation_e flags)
 {
-  gld_DrawNumPatch_f(x, y, lump, cm, flags);
+
 }
 
 void gl3_PlotPixel(int scrn, int x, int y, byte color) {
-  gld_DrawLine(x-1, y, x+1, y, color);
-  gld_DrawLine(x, y-1, x, y+1, color);
+
 }
 
 void gl3_PlotPixelWu(int scr, int x, int y, byte color, int weight) {
-  gld_DrawLine(x-1, y, x+1, y, color);
-  gld_DrawLine(x, y-1, x, y+1, color);
+
 }
 
 void gl3_DrawLine(fline_t *fl, int color) {
-  gld_DrawLine_f(fl->a.fx, fl->a.fy, fl->b.fx, fl->b.fy, color);
+
 }

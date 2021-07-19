@@ -53,7 +53,10 @@
 #include "lprintf.h"
 #include "st_stuff.h"
 #include "e6y.h"
+
+#ifdef GL_DOOM
 #include "gl3_main.h"
+#endif
 
 #include "dsda/global.h"
 #include "dsda/palette.h"
@@ -1000,7 +1003,7 @@ void V_InitMode(video_mode_t mode) {
     V_PlotPixelWu = gl3_PlotPixelWu;
     V_DrawLine = gl3_DrawLine;
     V_DrawLineWu = gl3_DrawLine;
-    current_videomode = VID_MODEGL;
+    current_videomode = VID_MODEGL3;
     break;
 #endif
   }

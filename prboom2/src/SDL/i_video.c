@@ -83,6 +83,7 @@
 
 #ifdef GL_DOOM
 #include "gl_struct.h"
+#include "gl3_main.h"
 #endif
 
 #include "e6y.h"//e6y
@@ -367,6 +368,8 @@ void I_StartTic (void)
 //
 void I_StartFrame (void)
 {
+  if (V_GL3Active())
+    gl3_Start();
 }
 
 //
@@ -518,6 +521,10 @@ void I_FinishUpdate (void)
   if (V_LegacyGLActive()) {
     // proff 04/05/2000: swap OpenGL buffers
     gld_Finish();
+    return;
+  } else if (V_GL3Active()) {
+    // Same thing, but doesn't do legacy renderer specific things.
+    gl3_Finish();
     return;
   }
 #endif
@@ -870,7 +877,7 @@ void I_CalculateRes(int width, int height)
 // if the requested mode can't be set correctly.
 // For example glboom.exe -geom 1025x768 -nowindow will set 1024x768.
 // It affects only fullscreen modes.
-  if (V_LegacyGLActive()) {
+  if (V_GLActive()) {
     if ( desired_fullscreen )
     {
       I_ClosestResolution(&width, &height);
@@ -1200,6 +1207,14 @@ void I_UpdateVideoMode(void)
 
       //e6y: anti-aliasing
       gld_MultisamplingInit();
+    } else if (V_GL3Active()) {
+      // Enable double buffering
+      SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+      // Create core profile 3.3 context
+      SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+      SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+      SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     }
 
     sdl_window = SDL_CreateWindow(
@@ -1372,6 +1387,7 @@ void I_UpdateVideoMode(void)
     lprintf(LO_INFO,"    SDL_GL_STENCIL_SIZE: %i\n",temp);
 
     if (V_LegacyGLActive()) gld_Init(SCREENWIDTH, SCREENHEIGHT);
+    else if (V_GL3Active()) gl3_Init(SCREENWIDTH, SCREENHEIGHT);
   }
 
   if (V_GLActive())

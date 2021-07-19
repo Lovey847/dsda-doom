@@ -27,10 +27,15 @@ GL3_EXTFUNCS;
 dboolean gl3_InitOpenGL(void)
 {
   // Load functions
-#define DEFEXTFUNC(_type, _name, ...)                           \
-  if (!gl3_ ## _name) {                                         \
-    gl3_ ## _name = SDL_GL_GetProcAddress(#_name);              \
-    if (!gl3_ ## _name) return false;                           \
+#define DEFEXTFUNC(_type, _name, ...)                                   \
+  if (!gl3_ ## _name) {                                                 \
+    gl3_ ## _name = SDL_GL_GetProcAddress(#_name);                      \
+    if (!gl3_ ## _name) {                                               \
+      lprintf(LO_INFO, "gl3_InitOpenGL: Failed to load %s!\n", #_name); \
+      return false;                                                     \
+    }                                                                   \
+                                                                        \
+    lprintf(LO_INFO, "gl3_InitOpenGL: Loaded %s\n", #_name);            \
   }
   GL3_EXTFUNCS;
 #undef DEFEXTFUNC

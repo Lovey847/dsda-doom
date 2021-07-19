@@ -60,6 +60,10 @@
 #include "e6y.h"//e6y
 #include "xs_Float.h"
 
+#ifdef GL_DOOM
+#include "gl3_main.h"
+#endif
+
 // e6y
 // Now they are variables. Depends from render_doom_lightmaps variable.
 // Unify colour maping logic by cph is removed, because of bugs.
