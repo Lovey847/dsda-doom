@@ -53,6 +53,7 @@
 #include "lprintf.h"
 #include "st_stuff.h"
 #include "e6y.h"
+#include "gl3_main.h"
 
 #include "dsda/global.h"
 #include "dsda/palette.h"
@@ -988,17 +989,17 @@ void V_InitMode(video_mode_t mode) {
     // TODO: This is, temporarily, just a duplicate of OpenGL
     //       Actually implement 3.3!
     lprintf(LO_INFO, "V_InitMode: using OpenGL 3.3 video mode\n");
-    V_CopyRect = WRAP_gld_CopyRect;
-    V_FillRect = WRAP_gld_FillRect;
-    V_DrawNumPatch = WRAP_gld_DrawNumPatch;
-    V_DrawNumPatchPrecise = WRAP_gld_DrawNumPatchPrecise;
-    V_FillFlat = WRAP_gld_FillFlat;
-    V_FillPatch = WRAP_gld_FillPatch;
-    V_DrawBackground = WRAP_gld_DrawBackground;
-    V_PlotPixel = V_PlotPixelGL;
-    V_PlotPixelWu = V_PlotPixelWuGL;
-    V_DrawLine = WRAP_gld_DrawLine;
-    V_DrawLineWu = WRAP_gld_DrawLine;
+    V_CopyRect = NULL_CopyRect;
+    V_FillRect = gl3_FillRect;
+    V_DrawNumPatch = gl3_DrawNumPatch;
+    V_DrawNumPatchPrecise = gl3_DrawNumPatchPrecise;
+    V_FillFlat = gl3_FillFlat;
+    V_FillPatch = gl3_FillPatch;
+    V_DrawBackground = gl3_DrawBackground;
+    V_PlotPixel = gl3_PlotPixel;
+    V_PlotPixelWu = gl3_PlotPixelWu;
+    V_DrawLine = gl3_DrawLine;
+    V_DrawLineWu = gl3_DrawLine;
     current_videomode = VID_MODEGL;
     break;
 #endif
