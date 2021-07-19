@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * DESCRIPTION:
- *   OpenGL 3.3 function loader
+ *   Main OpenGL 3.3 implementation
  */
 
 #include "gl3_main.h"
