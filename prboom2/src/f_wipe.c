@@ -80,7 +80,7 @@ static int wipe_initMelt(int ticks)
 {
   int i;
 
-  if (V_GetMode() != VID_MODEGL)
+  if (!V_GLActive())
   {
     // copy start screen to main screen
     for(i=0;i<SCREENHEIGHT;i++)
@@ -130,7 +130,7 @@ static int wipe_doMelt(int ticks)
         if (y_lookup[i]+dy >= SCREENHEIGHT)
           dy = SCREENHEIGHT - y_lookup[i];
 
-       if (V_GetMode() != VID_MODEGL) {
+       if (!V_GLActive()) {
         s = wipe_scr_end.data    + (y_lookup[i]*wipe_scr_end.byte_pitch+(i*depth));
         d = wipe_scr.data        + (y_lookup[i]*wipe_scr.byte_pitch+(i*depth));
         for (j=dy;j;j--) {
@@ -141,7 +141,7 @@ static int wipe_doMelt(int ticks)
         }
        }
         y_lookup[i] += dy;
-       if (V_GetMode() != VID_MODEGL) {
+       if (!V_GLActive()) {
         s = wipe_scr_start.data  + (i*depth);
         d = wipe_scr.data        + (y_lookup[i]*wipe_scr.byte_pitch+(i*depth));
         for (j=SCREENHEIGHT-y_lookup[i];j;j--) {
@@ -156,7 +156,7 @@ static int wipe_doMelt(int ticks)
     }
   }
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_wipe_doMelt(ticks, y_lookup);
   }
@@ -169,7 +169,7 @@ static int wipe_doMelt(int ticks)
 static int wipe_exitMelt(int ticks)
 {
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_wipe_exitMelt(ticks);
     return 0;
@@ -194,7 +194,7 @@ int wipe_StartScreen(void)
   wasWiped = true;//e6y
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_wipe_StartScreen();
     return 0;
@@ -223,7 +223,7 @@ int wipe_EndScreen(void)
   wasWiped = false;//e6y
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_wipe_EndScreen();
     return 0;

@@ -429,7 +429,7 @@ static void I_UploadNewPalette(int pal, int force)
   static size_t num_pals;
   dsda_playpal_t* playpal_data;
 
-  if (V_GetMode() == VID_MODEGL)
+  if (V_GLActive())
     return;
 
   playpal_data = dsda_PlayPalData();
@@ -515,7 +515,7 @@ void I_FinishUpdate (void)
 #endif
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL) {
+  if (V_LegacyGLActive()) {
     // proff 04/05/2000: swap OpenGL buffers
     gld_Finish();
     return;
@@ -870,7 +870,7 @@ void I_CalculateRes(int width, int height)
 // if the requested mode can't be set correctly.
 // For example glboom.exe -geom 1025x768 -nowindow will set 1024x768.
 // It affects only fullscreen modes.
-  if (V_GetMode() == VID_MODEGL) {
+  if (V_LegacyGLActive()) {
     if ( desired_fullscreen )
     {
       I_ClosestResolution(&width, &height);
@@ -1002,7 +1002,7 @@ void I_InitScreenResolution(void)
     mode = (video_mode_t)I_GetModeFromString(myargv[i+1]);
   }
 #ifndef GL_DOOM
-  if (mode == VID_MODEGL)
+  if (V_IsGL(mode))
   {
     mode = (video_mode_t)I_GetModeFromString(default_videomode = "8bit");
   }
@@ -1130,7 +1130,7 @@ void I_UpdateVideoMode(void)
     I_CaptureFinish();
 
 #ifdef GL_DOOM
-    if (V_GetMode() == VID_MODEGL)
+    if (V_LegacyGLActive())
     {
       gld_CleanMemory();
       // hires patches
@@ -1159,14 +1159,14 @@ void I_UpdateVideoMode(void)
   screen_multiply = render_screen_multiply;
 
   // Initialize SDL with this graphics mode
-  if (V_GetMode() == VID_MODEGL) {
+  if (V_GLActive()) {
     init_flags = SDL_WINDOW_OPENGL;
   }
 
   // Fullscreen desktop for software renderer only - DTIED
   if (desired_fullscreen)
   {
-    if (V_GetMode() == VID_MODEGL || exclusive_fullscreen)
+    if (V_GLActive() || exclusive_fullscreen)
       init_flags |= SDL_WINDOW_FULLSCREEN;
     else
       init_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
@@ -1176,29 +1176,31 @@ void I_UpdateVideoMode(void)
   // running.  This feature is disabled on OS X, as it adds an ugly
   // scroll handle to the corner of the screen.
 #ifndef MACOSX
-  if (!desired_fullscreen && V_GetMode() != VID_MODEGL)
+  if (!desired_fullscreen && !V_GLActive())
     init_flags |= SDL_WINDOW_RESIZABLE;
 #endif
 
-  if (V_GetMode() == VID_MODEGL)
+  if (V_GLActive())
   {
 #ifdef GL_DOOM
-    SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_ALPHA_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_ACCUM_RED_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_ACCUM_GREEN_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_ACCUM_BLUE_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_ACCUM_ALPHA_SIZE, 0 );
-    SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-    SDL_GL_SetAttribute( SDL_GL_BUFFER_SIZE, gl_colorbuffer_bits );
-    SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, gl_depthbuffer_bits );
-    SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, 8 );
+    if (V_LegacyGLActive()) {
+      SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_ALPHA_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_ACCUM_RED_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_ACCUM_GREEN_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_ACCUM_BLUE_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_ACCUM_ALPHA_SIZE, 0 );
+      SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+      SDL_GL_SetAttribute( SDL_GL_BUFFER_SIZE, gl_colorbuffer_bits );
+      SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, gl_depthbuffer_bits );
+      SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, 8 );
 
-    //e6y: anti-aliasing
-    gld_MultisamplingInit();
+      //e6y: anti-aliasing
+      gld_MultisamplingInit();
+    }
 
     sdl_window = SDL_CreateWindow(
       PACKAGE_NAME " " PACKAGE_VERSION,
@@ -1207,7 +1209,7 @@ void I_UpdateVideoMode(void)
       init_flags);
     sdl_glcontext = SDL_GL_CreateContext(sdl_window);
 
-    gld_CheckHardwareGamma();
+    if (V_LegacyGLActive()) gld_CheckHardwareGamma();
 #endif
   }
   else
@@ -1292,7 +1294,7 @@ void I_UpdateVideoMode(void)
   windowid = SDL_GetWindowID(sdl_window);
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_GLActive())
   {
     SDL_GL_SetSwapInterval(((render_vsync && !novsync) ? 1 : 0));
   }
@@ -1303,7 +1305,7 @@ void I_UpdateVideoMode(void)
     gld_MultisamplingCheck();*/
 #endif
 
-  if (V_GetMode() != VID_MODEGL)
+  if (!V_GLActive())
   {
     lprintf(LO_INFO, "I_UpdateVideoMode: 0x%x, %s, %s\n", init_flags, screen && screen->pixels ? "SDL buffer" : "own buffer", screen && SDL_MUSTLOCK(screen) ? "lock-and-copy": "direct access");
 
@@ -1336,7 +1338,7 @@ void I_UpdateVideoMode(void)
   AM_SetResolution();
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_GLActive())
   {
     int temp;
     lprintf(LO_INFO,"SDL OpenGL PixelFormat:\n");
@@ -1369,10 +1371,10 @@ void I_UpdateVideoMode(void)
     SDL_GL_GetAttribute( SDL_GL_STENCIL_SIZE, &temp );
     lprintf(LO_INFO,"    SDL_GL_STENCIL_SIZE: %i\n",temp);
 
-    gld_Init(SCREENWIDTH, SCREENHEIGHT);
+    if (V_LegacyGLActive()) gld_Init(SCREENWIDTH, SCREENHEIGHT);
   }
 
-  if (V_GetMode() == VID_MODEGL)
+  if (V_GLActive())
   {
     M_ChangeFOV();
     deh_changeCompTranslucency();
@@ -1499,7 +1501,7 @@ static void UpdateFocus(void)
   }
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     if (gl_hardware_gamma)
     {

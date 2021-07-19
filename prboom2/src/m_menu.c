@@ -3487,7 +3487,7 @@ void M_ChangeDemoSmoothTurns(void)
 void M_ChangeTextureParams(void)
 {
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_InitTextureParams();
     gld_FlushTextures();
@@ -4675,7 +4675,7 @@ dboolean M_Responder (event_t* ev) {
     {
 //e6y
 #ifdef GL_DOOM
-      if (V_GetMode() == VID_MODEGL && gl_hardware_gamma)
+      if (V_LegacyGLActive() && gl_hardware_gamma)
       {
         static char str[200];
         useglgamma++;
@@ -4846,7 +4846,7 @@ dboolean M_Responder (event_t* ev) {
     }
 
 #ifdef GL_DOOM
-    if (V_GetMode() == VID_MODEGL)
+    if (V_GLActive())
     {
       if (dsda_InputActivated(dsda_input_showalive) && !dsda_StrictMode())
       {

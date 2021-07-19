@@ -368,7 +368,7 @@ static void R_AddLine (seg_t *line)
   curline = line;
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     angle1 = R_PointToPseudoAngle(line->v1->x, line->v1->y);
     angle2 = R_PointToPseudoAngle(line->v2->x, line->v2->y);
@@ -536,7 +536,7 @@ static dboolean R_CheckBBox(const fixed_t *bspcoord)
   check = checkcoord[boxpos];
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     angle1 = R_PointToPseudoAngle(bspcoord[check[0]], bspcoord[check[1]]);
     angle2 = R_PointToPseudoAngle(bspcoord[check[2]], bspcoord[check[3]]);
@@ -619,7 +619,7 @@ static void R_Subsector(int num)
   currentsubsectornum = num;
 
 #ifdef GL_DOOM
-  if (V_GetMode() != VID_MODEGL || !gl_use_stencil || sub->sector->validcount != validcount)
+  if (!V_GLActive() || !gl_use_stencil || sub->sector->validcount != validcount)
 #endif
   {
     frontsector = sub->sector;
@@ -663,7 +663,7 @@ static void R_Subsector(int num)
   // New algo can handle fake flats and ceilings
   // much more correctly and fastly the the original
 #ifdef GL_DOOM
-    if (V_GetMode() == VID_MODEGL)
+    if (V_LegacyGLActive())
     {
       // check if the sector is faked
       sector_t *tmpsec = NULL;
@@ -775,7 +775,7 @@ static void R_Subsector(int num)
     R_AddSprites(sub, (floorlightlevel+ceilinglightlevel)/2);
 
 #ifdef GL_DOOM
-    if (V_GetMode() == VID_MODEGL)
+    if (V_LegacyGLActive())
       gld_AddPlane(num, floorplane, ceilingplane);
 #endif
   }

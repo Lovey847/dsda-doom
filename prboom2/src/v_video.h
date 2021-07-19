@@ -171,6 +171,9 @@ typedef enum {
   VID_MODEGL3,
   VID_MODEMAX
 } video_mode_t;
+#define V_IsGL(mode) ((mode) >= VID_MODEGL)
+#define V_IsLegacyGL(mode) ((mode) == VID_MODEGL)
+#define V_IsGL3(mode) ((mode) == VID_MODEGL3)
 
 extern const char *default_videomode;
 
@@ -178,6 +181,10 @@ void V_InitMode(video_mode_t mode);
 
 // video mode query interface
 video_mode_t V_GetMode(void);
+#define V_GLActive() V_IsGL(V_GetMode())
+#define V_LegacyGLActive() V_IsLegacyGL(V_GetMode())
+#define V_GL3Active() V_IsGL3(V_GetMode())
+
 int V_GetModePixelDepth(video_mode_t mode);
 int V_GetNumPixelBits(void);
 int V_GetPixelDepth(void);

@@ -631,7 +631,7 @@ void R_SetClipPlanes(void)
 {
   // thing is behind view plane?
 #ifdef GL_DOOM
-  if ((V_GetMode() == VID_MODEGL) &&
+  if ((V_LegacyGLActive()) &&
       (HaveMouseLook() || (render_fov > FOV90)) &&
       (!render_paperitems || simple_shadows.loaded))
   {
@@ -675,7 +675,7 @@ static void R_ProjectSprite (mobj_t* thing, int lightlevel)
   int width;
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_ProjectSprite(thing, lightlevel);
     return;
@@ -1210,7 +1210,7 @@ static void R_DrawPSprite (pspdef_t *psp)
   }
 
   // proff 11/99: don't use software stuff in OpenGL
-  if (V_GetMode() != VID_MODEGL)
+  if (!V_GLActive())
   {
     R_DrawVisSprite(vis);
   }

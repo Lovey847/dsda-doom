@@ -724,7 +724,7 @@ void V_UpdateTrueColorPalette(video_mode_t mode) {
   dsda_playpal_t* playpal_data;
   static int usegammaOnLastPaletteGeneration = -1;
 
-  paletteNum = (V_GetMode() == VID_MODEGL ? 0 : currentPaletteIndex);
+  paletteNum = (V_GLActive() ? 0 : currentPaletteIndex);
 
   playpal_data = dsda_PlayPalData();
   pplump = W_CheckNumForName(playpal_data->lump_name);
@@ -740,7 +740,7 @@ void V_UpdateTrueColorPalette(video_mode_t mode) {
   // opengl doesn't use the gamma
   gtable =
     (const byte *) W_CacheLumpNum(gtlump) +
-    (V_GetMode() == VID_MODEGL ? 0 : 256 * (usegamma))
+    (V_GLActive() ? 0 : 256 * (usegamma))
   ;
 
   numPals = W_LumpLength(pplump) / (3 * 256);
@@ -801,7 +801,7 @@ void V_SetPalette(int pal)
 {
   currentPaletteIndex = pal;
 
-  if (V_GetMode() == VID_MODEGL) {
+  if (V_LegacyGLActive()) {
 #ifdef GL_DOOM
     gld_SetPalette(pal);
 #endif
@@ -819,7 +819,7 @@ void V_SetPlayPal(int playpal_index)
   R_UpdatePlayPal();
   V_SetPalette(currentPaletteIndex);
 
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
 #ifdef GL_DOOM
     gld_FlushTextures();
@@ -1660,7 +1660,7 @@ void V_ToggleFullscreen(void)
   I_UpdateVideoMode();
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_PreprocessLevel();
   }
@@ -1672,7 +1672,7 @@ void V_ChangeScreenResolution(void)
   I_UpdateVideoMode();
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL)
+  if (V_LegacyGLActive())
   {
     gld_PreprocessLevel();
   }

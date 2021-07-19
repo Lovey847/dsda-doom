@@ -345,7 +345,7 @@ void G_SkipDemoStop(void)
   S_RestartMusic();
 
 #ifdef GL_DOOM
-  if (V_GetMode() == VID_MODEGL) {
+  if (V_LegacyGLActive()) {
     gld_PreprocessLevel();
   }
 #endif
@@ -513,7 +513,7 @@ void M_ChangeMaxViewPitch(void)
 {
   int max_up, max_dn, angle_up, angle_dn;
 
-  if (V_GetMode() == VID_MODEGL)
+  if (V_GLActive())
   {
     max_up = movement_maxviewpitch;
     max_dn = movement_maxviewpitch;
