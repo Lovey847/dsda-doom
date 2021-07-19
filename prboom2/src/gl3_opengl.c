@@ -24,15 +24,16 @@
 GL3_EXTFUNCS;
 #undef DEFEXTFUNC
 
-void gl3_InitOpenGL(void)
+dboolean gl3_InitOpenGL(void)
 {
   // Load functions
 #define DEFEXTFUNC(_type, _name, ...)                           \
   if (!gl3_ ## _name) {                                         \
     gl3_ ## _name = SDL_GL_GetProcAddress(#_name);              \
-    if (!gl3_ ## _name)                                         \
-      I_Error("gl3_InitOpenGL: Failed to load %s!\n", #_name);  \
+    if (!gl3_ ## _name) return false;                           \
   }
   GL3_EXTFUNCS;
 #undef DEFEXTFUNC
+
+  return true;
 }

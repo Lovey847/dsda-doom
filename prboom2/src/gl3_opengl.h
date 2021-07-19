@@ -51,6 +51,6 @@ GL3_EXTFUNCS;
 #undef DEFEXTFUNC
 
 // Load functions
-void gl3_InitOpenGL(void);
+dboolean gl3_InitOpenGL(void);
 
 #endif //_GL3_OPENGL_H
