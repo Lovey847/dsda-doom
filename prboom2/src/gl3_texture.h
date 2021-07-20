@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * DESCRIPTION:
- *   Main OpenGL 3.3 implementation
+ *   OpenGL 3.3 texture handling
  */
 
 #ifndef _GL3_TEXTURE_H
@@ -20,12 +20,34 @@
 
 #include "gl3_main.h"
 
+// Textures in texture list
 enum gl3_texture_e {
-  // Texture atlas of patches
-  GL3_TEX_PATCHES = 0,
-  
+  // Created from the PLAYPAL lump
+  // Used as a lookup table for colors
+  GL3_TEX_PLAYPAL = 0,
+
+  // Texture pages
+  GL3_TEX_PATCHES, // Page for patches
+
   GL3_TEX_COUNT
 };
+
+// Texture coordinates
+typedef struct gl3_texcoord_s {
+  short x, y;
+} gl3_texcoord_t;
+
+// OpenGL patch information
+typedef struct gl3_patch_s {
+  // Top left and bottom right of patch in texture page
+  gl3_texcoord_t tl, br;
+
+  // Offset to top left of patch
+  int leftoffset, topoffset;
+
+  // Patch size
+  int width, height;
+} gl3_patch_t;
 
 // Texture objects
 extern GLuint gl3_textures[GL3_TEX_COUNT];
