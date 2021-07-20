@@ -16,11 +16,19 @@
  */
 
 #include "gl3_main.h"
-#include "i_video.h"
-#include "lprintf.h"
+#include "gl3_texture.h"
 
+#include "lprintf.h"
+#include "i_video.h"
+
+// OpenGL implementation information
+int gl3_GL_MAX_TEXTURE_SIZE;
+int gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT;
+
+// TODO: Implement error checking!
 void gl3_Init(int width, int height) {
   const char *vendor, *renderer, *version, *glslVer;
+  int i;
 
   // Load extension functions
   if (!gl3_InitOpenGL()) I_Error("Couldn't load extension functions!");
@@ -42,6 +50,19 @@ void gl3_Init(int width, int height) {
           "            GLSL Version: %s\n",
 
           vendor, renderer, version, glslVer);
+
+  // Get implementation values
+  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl3_GL_MAX_TEXTURE_SIZE);
+  glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+  lprintf(LO_INFO,
+          "gl3_Init: OpenGL implementation information:\n"
+          "            GL_MAX_TEXTURE_SIZE: %d\n"
+          "            GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT: %d\n",
+
+          gl3_GL_MAX_TEXTURE_SIZE, gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+
+  // Create textures
+  gl3_InitTextures();
 }
 
 void gl3_Start(void) {
@@ -52,8 +73,6 @@ void gl3_Finish(void) {
   SDL_GL_SwapWindow(sdl_window);
 }
 
-// TODO: Right now, these are wrappers for gld functions.
-//       Implement these at some point!
 void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color) {
 
 }

@@ -444,6 +444,9 @@ void gld_Init(int width, int height)
 
   gld_ResetLastTexture();
 
+  // TODO: When OpenGL 3.3 is fully implemented, we must _actually_ free up
+  //       OpenGL resources when switching video modes, instead of doing it
+  //       at exit, since VID_MODEGL and VID_MODEGL3 share resources!
   I_AtExit(gld_CleanMemory, true); //e6y
 }
 

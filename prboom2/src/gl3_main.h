@@ -21,6 +21,10 @@
 #include "gl3_opengl.h"
 #include "v_video.h"
 
+// OpenGL implementation information
+extern int gl3_GL_MAX_TEXTURE_SIZE;
+extern int gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT;
+
 // Initialize opengl 3.3 renderer
 void gl3_Init(int width, int height);
 
