@@ -26,72 +26,78 @@
 
 #include <stdio.h>
 
-GLuint gl3_textures[GL3_TEX_COUNT];
+GLuint gl3_paltex;
+GLuint gl3_texpages[GL3_MAXPAGES];
 
-void gl3_InitTextures(void) {
-  // Used when constructing outpal
-  static const byte alphaTable[2] = {255, 0};
-
-  int i, j;
+static void gl3_InitPal(void) {
+  int x, y, z;
+  int width, height, depth;
 
   // playpal: PLAYPAL lump
-  // outpal: PLAYPAL formatted into RGBA8, using transparency from playpaldata->transparency
-  int playpalsize;
-  const byte *playpal;
+  // colmap: COLORMAP lump
+  // outpal: Output palette, in RGBA8 format
+  //         Filled for each combination of PLAYPAL and COLORMAP
+  const byte *playpal, *colmap;
   byte *outpal;
 
+  int colmapnum;
+
   dsda_playpal_t *playpaldata = dsda_PlayPalData();
-  
-  // Initialize textures
-  glGenTextures(GL3_TEX_COUNT, gl3_textures);
 
-  for (i = 0; i < GL3_TEX_COUNT; ++i) {
-    glActiveTexture(GL_TEXTURE0+i);
-    glBindTexture(GL_TEXTURE_2D, gl3_textures[i]);
+  // Make palette texture
+  glGenTextures(1, &gl3_paltex);
 
-    // Set texture parameters
-    // TODO: Make filtering an option at some point!
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  // Number of playpals
+  width = W_LumpLength(W_GetNumForName(playpaldata->lump_name))/768;
 
-    // Create texture image, this step is done differently for each texture
-    switch (i) {
-    case GL3_TEX_PLAYPAL:
-      // Load playpal lump into texture
-      playpalsize = W_LumpLength(W_GetNumForName(playpaldata->lump_name));
-      playpal = V_GetPlaypal();
+  // Number of colormaps
+  colmapnum = W_GetNumForName("COLORMAP");
+  height = W_LumpLength(colmapnum)/256;
 
-      // Process into RGBA8 format (add transparency byte every 3 color bytes)
-      outpal = (byte*)Z_Malloc(playpalsize+playpalsize/3, PU_STATIC, NULL);
+  // Depth (index into colormap, always 256)
+  depth = 256;
 
-      for (j = playpalsize/3; j--;) {
-        outpal[j*4] = playpal[j*3];
-        outpal[j*4 + 1] = playpal[j*3 + 1];
-        outpal[j*4 + 2] = playpal[j*3 + 2];
-        outpal[j*4 + 3] = alphaTable[(j&255) == playpaldata->transparent];
+  glBindTexture(GL_TEXTURE_3D, gl3_paltex);
+  glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8,
+               width, height, depth,
+               0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+  // If we failed to create the texture, error out
+  if (glGetError() != GL_NO_ERROR)
+    I_Error("gl3_InitTextures: Cannot create palette texture!\n");
+
+  // Fill palette texture, one palette at a time
+  playpal = V_GetPlaypal();
+  colmap = W_CacheLumpNum(colmapnum);
+  outpal = (byte*)Z_Malloc(depth*4, PU_STATIC, NULL);
+
+  for (x = 0; x < width; ++x) {
+    for (y = 0; y < height; ++y) {
+      for (z = 0; z < depth; ++z) {
+        const size_t ind = 768*x + 3*colmap[256*y + z];
+
+        outpal[z*4] = playpal[ind];
+        outpal[z*4 + 1] = playpal[ind+1];
+        outpal[z*4 + 2] = playpal[ind+2];
+        outpal[z*4 + 3] = 255 * (z != playpaldata->transparent);
       }
 
-      // Set texture image
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
-                   256, playpalsize/768, // 768 == size of single palette in playpal
-                   0, GL_RGBA, GL_UNSIGNED_BYTE, outpal);
-
-      // Free extra palette
-      Z_Free(outpal);
-
-      break;
-
-    default:
-      // Texture page, take biggest size available
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
-                   gl3_GL_MAX_TEXTURE_SIZE, gl3_GL_MAX_TEXTURE_SIZE,
-                   0, GL_RED, GL_UNSIGNED_BYTE, NULL);
-
-      break;
+      glTexSubImage3D(GL_TEXTURE_3D, 0,
+                      x, y, z,
+                      1, 1, depth,
+                      GL_RGBA, GL_UNSIGNED_BYTE, outpal);
     }
   }
+
+  Z_Free(outpal);
+  W_UnlockLumpNum(colmapnum);
+}
+
+void gl3_InitTextures(void) {
+  // Initialize textures
+  gl3_InitPal();
+
+  // TODO: Make texture pages!
 
   // TODO: When OpenGL 3.3 is fully implemented, we must _actually_ free up
   //       OpenGL resources when switching video modes, instead of doing it
@@ -100,5 +106,7 @@ void gl3_InitTextures(void) {
 }
 
 void gl3_DeleteTextures(void) {
-  glDeleteTextures(GL3_TEX_COUNT, gl3_textures);
+  glDeleteTextures(1, &gl3_paltex);
+
+  // TODO: When texture pages are implemented, delete them here!
 }

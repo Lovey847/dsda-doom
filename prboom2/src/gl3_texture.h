@@ -20,18 +20,6 @@
 
 #include "gl3_main.h"
 
-// Textures in texture list
-enum gl3_texture_e {
-  // Created from the PLAYPAL lump
-  // Used as a lookup table for colors
-  GL3_TEX_PLAYPAL = 0,
-
-  // Texture pages
-  GL3_TEX_PATCHES, // Page for patches
-
-  GL3_TEX_COUNT
-};
-
 // Texture coordinates
 typedef struct gl3_texcoord_s {
   short x, y;
@@ -40,6 +28,8 @@ typedef struct gl3_texcoord_s {
 // OpenGL patch information
 typedef struct gl3_patch_s {
   // Top left and bottom right of patch in texture page
+  // NOTE: If tl.y > br.y, that means the patch was
+  //       rotated 90 degrees!
   gl3_texcoord_t tl, br;
 
   // Offset to top left of patch
@@ -49,8 +39,15 @@ typedef struct gl3_patch_s {
   int width, height;
 } gl3_patch_t;
 
-// Texture objects
-extern GLuint gl3_textures[GL3_TEX_COUNT];
+// Palette texture
+// 3D texture filled with every combination of
+// PLAYPAL and COLORMAP for speedy palette lookup
+// X = playpal choice, Y = colormap choice, Z = colormap index
+extern GLuint gl3_paltex;
+
+// Texture pages
+#define GL3_MAXPAGES 8
+extern GLuint gl3_texpages[GL3_MAXPAGES];
 
 // Initialize texture objects
 void gl3_InitTextures(void);
