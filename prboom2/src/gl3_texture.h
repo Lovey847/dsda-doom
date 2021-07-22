@@ -48,6 +48,7 @@ extern GLuint gl3_paltex;
 // Texture pages
 #define GL3_MAXPAGES 8
 extern GLuint gl3_texpages[GL3_MAXPAGES];
+extern size_t gl3_pagecount;
 
 // Initialize texture objects
 void gl3_InitTextures(void);

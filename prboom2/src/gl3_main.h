@@ -20,6 +20,39 @@
 
 #include "gl3_opengl.h"
 #include "v_video.h"
+#include "lprintf.h"
+
+static const char *gl3_strerror(int errorCode) {
+  switch (errorCode) {
+  case GL_INVALID_ENUM: return "GL_INVALID_ENUM";
+  case GL_INVALID_VALUE: return "GL_INVALID_VALUE";
+  case GL_INVALID_OPERATION: return "GL_INVALID_OPERATION";
+  case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+  case GL_OUT_OF_MEMORY: return "GL_OUT_OF_MEMORY";
+  case GL_STACK_UNDERFLOW: return "GL_STACK_UNDERFLOW";
+  case GL_STACK_OVERFLOW: return "GL_STACK_OVERFLOW";
+  }
+
+  return "Unknown error";
+}
+
+// Wrap this around every opengl call
+extern int gl3_errno;
+
+#ifndef NDEBUG
+#define GL3(...)                                          \
+  __VA_ARGS__;                                            \
+  if ((gl3_errno = glGetError()) != GL_NO_ERROR)          \
+    lprintf(LO_INFO, "DEADCODE Line %d of %s: %s\n",      \
+            __LINE__, __FILE__, gl3_strerror(gl3_errno))  \
+
+#else // NDEBUG
+
+#define GL3(...)                                \
+  __VA_ARGS__;                                  \
+  gl3_errno = glGetError();
+
+#endif // NDEBUG
 
 // OpenGL implementation information
 extern int gl3_GL_MAX_TEXTURE_SIZE;

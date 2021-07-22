@@ -20,6 +20,10 @@
 
 #include "lprintf.h"
 #include "i_video.h"
+#include "w_wad.h"
+
+// OpenGL error code
+int gl3_errno;
 
 // OpenGL implementation information
 int gl3_GL_MAX_TEXTURE_SIZE;
@@ -34,13 +38,13 @@ void gl3_Init(int width, int height) {
   if (!gl3_InitOpenGL()) I_Error("Couldn't load extension functions!");
 
   // Set clear color
-  glClearColor(1.f, 0.f, 0.f, 1.f);
+  GL3(glClearColor(1.f, 0.f, 0.f, 1.f));
 
   // Log opengl information
-  vendor = glGetString(GL_VENDOR);
-  renderer = glGetString(GL_RENDERER);
-  version = glGetString(GL_VERSION);
-  glslVer = glGetString(GL_SHADING_LANGUAGE_VERSION);
+  vendor = GL3(glGetString(GL_VENDOR));
+  renderer = GL3(glGetString(GL_RENDERER));
+  version = GL3(glGetString(GL_VERSION));
+  glslVer = GL3(glGetString(GL_SHADING_LANGUAGE_VERSION));
 
   lprintf(LO_INFO,
           "gl3_Init: OpenGL context information:\n"
@@ -52,8 +56,9 @@ void gl3_Init(int width, int height) {
           vendor, renderer, version, glslVer);
 
   // Get implementation values
-  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl3_GL_MAX_TEXTURE_SIZE);
-  glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+  GL3(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl3_GL_MAX_TEXTURE_SIZE));
+  gl3_GL_MAX_TEXTURE_SIZE >>= 2;
+  GL3(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
   lprintf(LO_INFO,
           "gl3_Init: OpenGL implementation information:\n"
           "            GL_MAX_TEXTURE_SIZE: %d\n"
