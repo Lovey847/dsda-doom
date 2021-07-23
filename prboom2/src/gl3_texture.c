@@ -73,38 +73,40 @@ typedef struct rect_s {
   rect_renderFunc_t render; // Function to render rect into texture
 } rect_t;
 
-// Add graphics to rectangle list
+// Routines for adding various graphics to rectangle list
+
+// Add patch graphic to rectangle list
+static void AddP(rect_renderFunc_t render, rect_renderFunc_t renderRot,
+                 int id, int width, int height, rect_t *out)
+{
+  // Check if rect should be flipped
+  if (width > height) {
+    out->width = height;
+    out->height = width;
+    out->render = renderRot;
+  } else {
+    out->width = width;
+    out->height = height;
+    out->render = render;
+  }
+}
+
 // Add patch
 static void AddPatch(rect_t *r, int plump) {
-  int width, height;
   const rpatch_t *p;
 
   r->data.patch.lump = plump;
 
   p = R_CachePatchNum(plump);
 
-  // Store patch rotated by default, rotation makes it upright but flipped
-  width = p->height;
-  height = p->width;
-
+  // Store patch rotated by default, rotation makes it upright
+  AddP(RenderPatch, RenderPatchRot, plump, p->height, p->width, r);
   R_UnlockPatchNum(plump);
-
-  // Check if rect should be flipped
-  if (width > height) {
-    r->width = height;
-    r->height = width;
-    r->render = RenderPatchRot;
-  } else {
-    r->width = width;
-    r->height = height;
-    r->render = RenderPatch;
-  }
 }
 
 
 // Add texture
 static void AddTexture(rect_t *r, int tex) {
-  int width, height;
   const rpatch_t *p;
 
   r->data.texture.tex = tex;
@@ -112,21 +114,8 @@ static void AddTexture(rect_t *r, int tex) {
   p = R_CacheTextureCompositePatchNum(tex);
 
   // Store patch rotated by default, rotation makes it upright but flipped
-  width = p->height;
-  height = p->width;
-
+  AddP(RenderTexture, RenderTextureRot, tex, p->height, p->width, r);
   R_UnlockTextureCompositePatchNum(tex);
-
-  // Check if rect should be flipped
-  if (width > height) {
-    r->width = height;
-    r->height = width;
-    r->render = RenderTextureRot;
-  } else {
-    r->width = width;
-    r->height = height;
-    r->render = RenderTexture;
-  }
 }
 
 // Add flat
@@ -320,30 +309,43 @@ static void PackRects(rect_t *r, size_t rcnt) {
 //////////////////////////
 // Texture page renderer
 
-// TODO: Is this possible to do without rewriting so much code over and over?
-// Render patch into texture page
-static void RenderPatch(struct rect_s *r) {
-  size_t x, post;
+// Render patch into texture, used by render functions
+static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
+  size_t x, post, y;
   byte *out;
   dsda_playpal_t *playpaldata;
-  const rpatch_t *p;
-  const int alignedwidth = (r->width+3)&~3; // Align width to a 4-byte boundary
+
+  // Align width to a 4-byte boundary for glTexSubImage2D
+  const int alignedwidth = (r->width+3)&~3;
 
   // p->pixels doesn't have transparency pixels, so we have to do this ourselves
-  p = R_CachePatchNum(r->data.patch.lump);
-
   out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
   playpaldata = dsda_PlayPalData();
 
   memset(out, playpaldata->transparent, alignedwidth*r->height);
 
-  for (x = 0; x < r->height; ++x) {
-    for (post = 0; post < p->columns[x].numPosts; ++post) {
-      // Make sure this is a rotation so that texture coordinates
-      // can easily represent the intended orientation
-      memcpy(out + (r->height-1-x)*alignedwidth + p->columns[x].posts[post].topdelta,
-             p->columns[x].pixels + p->columns[x].posts[post].topdelta,
-             p->columns[x].posts[post].length);
+  if (rot) {
+    // Render rotated patch
+    // Looks upright since patches are stored column by column,
+    // and are usually rendered rotated since it's faster
+    for (x = 0; x < r->width; ++x) {
+      for (post = 0; post < p->columns[x].numPosts; ++post) {
+        for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
+             y-- > p->columns[x].posts[post].topdelta;)
+        {
+          out[y*alignedwidth + x] = p->columns[x].pixels[y];
+        }
+      }
+    }
+  } else {
+    for (x = 0; x < r->height; ++x) {
+      for (post = 0; post < p->columns[x].numPosts; ++post) {
+        // Make sure this is a rotation so that texture coordinates
+        // can easily represent the intended orientation
+        memcpy(out + (r->height-1-x)*alignedwidth + p->columns[x].posts[post].topdelta,
+               p->columns[x].pixels + p->columns[x].posts[post].topdelta,
+               p->columns[x].posts[post].length);
+      }
     }
   }
 
@@ -351,110 +353,35 @@ static void RenderPatch(struct rect_s *r) {
                       r->x, r->y, r->width, r->height,
                       GL_RED, GL_UNSIGNED_BYTE, out));
 
-  R_UnlockPatchNum(r->data.patch.lump);
   Z_Free(out);
+}
+
+// Render patch into texture page
+static void RenderPatch(struct rect_s *r) {
+  const rpatch_t *p = R_CachePatchNum(r->data.patch.lump);
+  RenderP(p, r, false);
+  R_UnlockPatchNum(r->data.patch.lump);
 }
 
 // Render rotated patch into texture page
 static void RenderPatchRot(struct rect_s *r) {
-  size_t x, post, y;
-  byte *out;
-  dsda_playpal_t *playpaldata;
-  const rpatch_t *p;
-  const int alignedwidth = (r->width+3)&~3;
-
-  // p->pixels doesn't have transparency pixels, so we have to do this ourselves
-  p = R_CachePatchNum(r->data.patch.lump);
-
-  out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
-  playpaldata = dsda_PlayPalData();
-
-  memset(out, playpaldata->transparent, alignedwidth*r->height);
-
-  for (x = 0; x < r->width; ++x) {
-    for (post = 0; post < p->columns[x].numPosts; ++post) {
-      for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
-           y-- > p->columns[x].posts[post].topdelta;)
-      {
-        out[y*alignedwidth + x] = p->columns[x].pixels[y];
-      }
-    }
-  }
-
-  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
-                      r->x, r->y, r->width, r->height,
-                      GL_RED, GL_UNSIGNED_BYTE, out));
-
+  const rpatch_t *p = R_CachePatchNum(r->data.patch.lump);
+  RenderP(p, r, true);
   R_UnlockPatchNum(r->data.patch.lump);
-  Z_Free(out);
 }
 
 // Render texture into texture page
 static void RenderTexture(struct rect_s *r) {
-  size_t x, post;
-  byte *out;
-  dsda_playpal_t *playpaldata;
-  const rpatch_t *p;
-  const int alignedwidth = (r->width+3)&~3;
-
-  // p->pixels doesn't have transparency pixels, so we have to do this ourselves
-  p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
-
-  out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
-  playpaldata = dsda_PlayPalData();
-
-  memset(out, playpaldata->transparent, alignedwidth*r->height);
-
-  for (x = 0; x < r->height; ++x) {
-    for (post = 0; post < p->columns[x].numPosts; ++post) {
-      // Make sure this is a rotation so that texture coordinates
-      // can easily represent the intended orientation
-      memcpy(out + (r->height-1-x)*alignedwidth + p->columns[x].posts[post].topdelta,
-             p->columns[x].pixels + p->columns[x].posts[post].topdelta,
-             p->columns[x].posts[post].length);
-    }
-  }
-
-  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
-                      r->x, r->y, r->width, r->height,
-                      GL_RED, GL_UNSIGNED_BYTE, out));
-
+  const rpatch_t *p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
+  RenderP(p, r, false);
   R_UnlockTextureCompositePatchNum(r->data.texture.tex);
-  Z_Free(out);
 }
 
 // Render rotated texture into texture page
 static void RenderTextureRot(struct rect_s *r) {
-  size_t x, post, y;
-  byte *out;
-  dsda_playpal_t *playpaldata;
-  const rpatch_t *p;
-  const int alignedwidth = (r->width+3)&~3;
-
-  // p->pixels doesn't have transparency pixels, so we have to do this ourselves
-  p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
-
-  out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
-  playpaldata = dsda_PlayPalData();
-
-  memset(out, playpaldata->transparent, alignedwidth*r->height);
-
-  for (x = 0; x < r->width; ++x) {
-    for (post = 0; post < p->columns[x].numPosts; ++post) {
-      for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
-           y-- > p->columns[x].posts[post].topdelta;)
-      {
-        out[y*alignedwidth + x] = p->columns[x].pixels[y];
-      }
-    }
-  }
-
-  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
-                      r->x, r->y, r->width, r->height,
-                      GL_RED, GL_UNSIGNED_BYTE, out));
-
+  const rpatch_t *p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
+  RenderP(p, r, true);
   R_UnlockTextureCompositePatchNum(r->data.texture.tex);
-  Z_Free(out);
 }
 
 // Render flat into texture page
