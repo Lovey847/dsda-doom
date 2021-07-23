@@ -25,8 +25,9 @@ typedef struct gl3_texcoord_s {
   short x, y;
 } gl3_texcoord_t;
 
-// OpenGL patch information
-typedef struct gl3_patch_s {
+// OpenGL texture information
+// (not specific to wall textures, just any picture in general, including flats)
+typedef struct gl3_texture_s {
   // Top left and bottom right of patch in texture page
   // NOTE: If tl.y > br.y, that means the patch was
   //       rotated 90 degrees!
@@ -34,10 +35,7 @@ typedef struct gl3_patch_s {
 
   // Offset to top left of patch
   int leftoffset, topoffset;
-
-  // Patch size
-  int width, height;
-} gl3_patch_t;
+} gl3_texture_t;
 
 // Palette texture
 // 3D texture filled with every combination of
