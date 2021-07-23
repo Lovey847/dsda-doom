@@ -45,6 +45,8 @@ typedef void (*rect_renderFunc_t)(struct rect_s *r);
 // Rect rendering functions
 static void RenderPatch(struct rect_s *r);
 static void RenderPatchRot(struct rect_s *r);
+static void RenderTexture(struct rect_s *r);
+static void RenderTextureRot(struct rect_s *r);
 static void RenderFlat(struct rect_s *r);
 
 typedef struct rect_s {
@@ -72,6 +74,7 @@ typedef struct rect_s {
 } rect_t;
 
 // Add graphics to rectangle list
+// Add patch
 static void AddPatch(rect_t *r, int plump) {
   int width, height;
   const rpatch_t *p;
@@ -98,6 +101,35 @@ static void AddPatch(rect_t *r, int plump) {
   }
 }
 
+
+// Add texture
+static void AddTexture(rect_t *r, int tex) {
+  int width, height;
+  const rpatch_t *p;
+
+  r->data.texture.tex = tex;
+
+  p = R_CacheTextureCompositePatchNum(tex);
+
+  // Store patch rotated by default, rotation makes it upright but flipped
+  width = p->height;
+  height = p->width;
+
+  R_UnlockTextureCompositePatchNum(tex);
+
+  // Check if rect should be flipped
+  if (width > height) {
+    r->width = height;
+    r->height = width;
+    r->render = RenderTextureRot;
+  } else {
+    r->width = width;
+    r->height = height;
+    r->render = RenderTexture;
+  }
+}
+
+// Add flat
 static void AddFlat(rect_t *r, int flump) {
   r->data.flat.lump = flump;
   r->render = RenderFlat;
@@ -217,7 +249,7 @@ static void PackRects(rect_t *r, size_t rcnt) {
     // Find region for rectangle
     for (region = regionbuf; region; region = region->next) {
       // If there's a region to the right of this one, with
-      // the same y coordinate, with the same height, merge them together
+      // the same y coordinate, and the same height, merge them together
       if (region->next) {
         while (region->next &&
                (region->next->y == region->y) &&
@@ -228,7 +260,7 @@ static void PackRects(rect_t *r, size_t rcnt) {
           region->next = region->next->next;
         }
       }
-      
+
       if ((r->width > region->width) ||
           (r->height > region->height)) continue;
 
@@ -321,6 +353,7 @@ static void RenderPatch(struct rect_s *r) {
   Z_Free(out);
 }
 
+// Render rotated patch into texture page
 static void RenderPatchRot(struct rect_s *r) {
   size_t x, post, y;
   byte *out;
@@ -350,6 +383,72 @@ static void RenderPatchRot(struct rect_s *r) {
                       GL_RED, GL_UNSIGNED_BYTE, out));
 
   R_UnlockPatchNum(r->data.patch.lump);
+  Z_Free(out);
+}
+
+// Render texture into texture page
+static void RenderTexture(struct rect_s *r) {
+  size_t x, post;
+  byte *out;
+  dsda_playpal_t *playpaldata;
+  const rpatch_t *p;
+
+  // p->pixels doesn't have transparency pixels, so we have to do this ourselves
+  p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
+
+  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  playpaldata = dsda_PlayPalData();
+
+  memset(out, playpaldata->transparent, r->width*r->height);
+
+  for (x = 0; x < r->height; ++x) {
+    for (post = 0; post < p->columns[x].numPosts; ++post) {
+      // Make sure this is a rotation so that texture coordinates
+      // can easily represent the intended orientation
+      memcpy(out + (r->height-1-x)*r->width + p->columns[x].posts[post].topdelta,
+             p->columns[x].pixels + p->columns[x].posts[post].topdelta,
+             p->columns[x].posts[post].length);
+    }
+  }
+
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      r->x, r->y, r->width, r->height,
+                      GL_RED, GL_UNSIGNED_BYTE, out));
+
+  R_UnlockTextureCompositePatchNum(r->data.texture.tex);
+  Z_Free(out);
+}
+
+// Render rotated texture into texture page
+static void RenderTextureRot(struct rect_s *r) {
+  size_t x, post, y;
+  byte *out;
+  dsda_playpal_t *playpaldata;
+  const rpatch_t *p;
+
+  // p->pixels doesn't have transparency pixels, so we have to do this ourselves
+  p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
+
+  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  playpaldata = dsda_PlayPalData();
+
+  memset(out, playpaldata->transparent, r->width*r->height);
+
+  for (x = 0; x < r->width; ++x) {
+    for (post = 0; post < p->columns[x].numPosts; ++post) {
+      for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
+           y-- > p->columns[x].posts[post].topdelta;)
+      {
+        out[y*r->width + x] = p->columns[x].pixels[y];
+      }
+    }
+  }
+
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      r->x, r->y, r->width, r->height,
+                      GL_RED, GL_UNSIGNED_BYTE, out));
+
+  R_UnlockTextureCompositePatchNum(r->data.texture.tex);
   Z_Free(out);
 }
 
@@ -540,7 +639,11 @@ static void gl3_InitPages(void) {
   sstart = W_GetNumForName("S_START")+1;
   send = W_GetNumForName("S_END");
 
-  numrects = sizeof(patchlist)/sizeof(patchlist[0]) + fend-fstart + send-sstart;
+  numrects =
+    sizeof(patchlist)/sizeof(patchlist[0]) +
+    send-sstart +
+    numtextures +
+    fend-fstart;
 
   rectbuf = Z_Malloc(sizeof(rect_t)*numrects, PU_STATIC, NULL);
   rect = rectbuf;
@@ -565,6 +668,10 @@ static void gl3_InitPages(void) {
 
     AddPatch(rect++, lump);
   }
+
+  // Go through textures, adding each one
+  for (lump = 0; lump < numtextures; ++lump)
+    AddTexture(rect++, lump);
 
   // Go through flats, adding each one
   for (lump = fstart; lump < fend; ++lump) {
