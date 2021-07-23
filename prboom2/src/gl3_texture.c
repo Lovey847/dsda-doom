@@ -50,6 +50,8 @@ static void RenderTextureRot(struct rect_s *r);
 static void RenderFlat(struct rect_s *r);
 
 typedef struct rect_s {
+  gl3_img_t *img; // Image this rectangle refers to
+
   // The first rectangle of a texture page is always at 0, 0.
   // That means whenever a rectangle is at 0, 0, the rectangle
   // couldn't fit on the last page and a new page should be made
@@ -310,6 +312,7 @@ static void PackRects(rect_t *r, size_t rcnt) {
 // Texture page renderer
 
 // Render patch into texture, used by render functions
+// Also set up image
 static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
   size_t x, post, y;
   byte *out;
@@ -340,9 +343,7 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
   } else {
     for (x = 0; x < r->height; ++x) {
       for (post = 0; post < p->columns[x].numPosts; ++post) {
-        // Make sure this is a rotation so that texture coordinates
-        // can easily represent the intended orientation
-        memcpy(out + (r->height-1-x)*alignedwidth + p->columns[x].posts[post].topdelta,
+        memcpy(out + x*alignedwidth + p->columns[x].posts[post].topdelta,
                p->columns[x].pixels + p->columns[x].posts[post].topdelta,
                p->columns[x].posts[post].length);
       }
@@ -354,6 +355,29 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
                       GL_RED, GL_UNSIGNED_BYTE, out));
 
   Z_Free(out);
+
+  // Set image properties
+  r->img->page = gl3_pagecount-1;
+
+  if (rot) {
+    r->img->tl.x = r->img->bl.x = r->x;
+    r->img->tr.x = r->img->br.x = r->x+r->width;
+
+    r->img->tl.y = r->img->tr.y = r->y;
+    r->img->bl.y = r->img->br.y = r->y+r->height;
+  } else {
+    r->img->tl.x = r->img->tr.x = r->x;
+    r->img->bl.x = r->img->br.x = r->x+r->width;
+
+    r->img->tl.y = r->img->bl.y = r->y;
+    r->img->tr.y = r->img->br.y = r->y+r->height;
+  }
+
+  r->img->leftoffset = p->leftoffset;
+  r->img->topoffset = p->topoffset;
+
+  r->img->width = p->width;
+  r->img->height = p->height;
 }
 
 // Render patch into texture page
@@ -391,6 +415,18 @@ static void RenderFlat(struct rect_s *r) {
                       r->x, r->y, 64, 64,
                       GL_RED, GL_UNSIGNED_BYTE, f));
   W_UnlockLumpNum(r->data.flat.lump);
+
+  // Set image properties
+  r->img->page = gl3_pagecount-1;
+
+  r->img->tl.x = r->img->bl.x = r->x;
+  r->img->tr.x = r->img->br.x = r->x+r->width;
+
+  r->img->tl.y = r->img->tr.y = r->y;
+  r->img->bl.y = r->img->br.y = r->y+r->height;
+
+  r->img->leftoffset = r->img->topoffset = 0;
+  r->img->width = r->img->height = 64;
 }
 
 // Render all rectangles into texture pages
@@ -420,6 +456,9 @@ static void RenderRects(rect_t *rects, size_t rcnt) {
 
 ///////////////////////
 // Texture handling
+
+gl3_img_t *gl3_images;
+size_t gl3_imagecount;
 
 GLuint gl3_paltex;
 GLuint gl3_texpages[GL3_MAXPAGES];
@@ -492,7 +531,7 @@ static void gl3_InitPal(void) {
 static void gl3_InitPages(void) {
   // Load all patches, textures, flats, etc. into the texture pages
   // Unidentifiable patch list
-  static const char *patchlist[] = {
+  static const char * const patchlist[] = {
     // Ultimate DOOM
     "HELP1", "CREDIT", "VICTORY2", "TITLEPIC", "PFUB1", "PFUB2",
     "END0", "END1", "END2", "END3", "END4", "END5", "END6",
@@ -559,8 +598,9 @@ static void gl3_InitPages(void) {
     // TODO: Add more games!
   };
 
+  gl3_img_t *img;
   rect_t *rectbuf, *rect;
-  size_t numrects, i;
+  size_t i;
   int lump;
   int sstart, send;
   int fstart, fend;
@@ -571,60 +611,91 @@ static void gl3_InitPages(void) {
   sstart = W_GetNumForName("S_START")+1;
   send = W_GetNumForName("S_END");
 
-  numrects =
+  gl3_imagecount =
     sizeof(patchlist)/sizeof(patchlist[0]) +
     send-sstart +
     numtextures +
     fend-fstart;
 
-  rectbuf = Z_Malloc(sizeof(rect_t)*numrects, PU_STATIC, NULL);
-  rect = rectbuf;
+  img = gl3_images = Z_Malloc(sizeof(gl3_img_t)*gl3_imagecount, PU_STATIC, NULL);
+  rect = rectbuf = Z_Malloc(sizeof(rect_t)*gl3_imagecount, PU_STATIC, NULL);
 
   // Go through patch list, adding each one
   for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i) {
     lump = W_CheckNumForName(patchlist[i]);
     if (lump < 0) {
-      --numrects;
+      --gl3_imagecount;
       continue;
     }
 
+    rect->img = img++;
     AddPatch(rect++, lump);
   }
 
   // Go through sprites, adding each one
   for (lump = sstart; lump < send; ++lump) {
     if (W_LumpLength(lump) == 0) {
-      --numrects;
+      --gl3_imagecount;
       continue;
     }
 
+    rect->img = img++;
     AddPatch(rect++, lump);
   }
 
   // Go through textures, adding each one
-  for (lump = 0; lump < numtextures; ++lump)
+  for (lump = 0; lump < numtextures; ++lump) {
+    rect->img = img++;
     AddTexture(rect++, lump);
+  }
 
   // Go through flats, adding each one
   for (lump = fstart; lump < fend; ++lump) {
     if (W_LumpLength(lump) != 4096) {
-      --numrects;
+      --gl3_imagecount;
       continue;
     }
 
+    rect->img = img++;
     AddFlat(rect++, lump);
   }
 
   // All rectangles added, pack rectangles
-  PackRects(rectbuf, numrects);
+  PackRects(rectbuf, gl3_imagecount);
 
   // Now render all rectangles into texture pages
-  RenderRects(rectbuf, numrects);
+  RenderRects(rectbuf, gl3_imagecount);
 
   Z_Free(rectbuf);
 
-  // DEBUG: Go through patchlist and make sure nothing clashes
+  // DEBUG: Log all images
   if (1) {
+    FILE *out = fopen("img.txt", "w");
+    for (i = 0; i < gl3_imagecount; ++i)
+      fprintf(out,
+              "Image %d:\n"
+              "  Texture page: %d\n"
+              "  Bounds:\n"
+              "    Top left: %hd %hd\n"
+              "    Top right: %hd %hd\n"
+              "    Bottom left: %hd %hd\n"
+              "    Bottom right: %hd %hd\n"
+              "  Offset: %d %d\n"
+              "  Size: %d %d\n",
+
+              (int)i,
+              (int)gl3_images[i].page,
+              gl3_images[i].tl.x, gl3_images[i].tl.y,
+              gl3_images[i].tr.x, gl3_images[i].tr.y,
+              gl3_images[i].bl.x, gl3_images[i].bl.y,
+              gl3_images[i].br.x, gl3_images[i].br.y,
+              gl3_images[i].leftoffset, gl3_images[i].topoffset,
+              gl3_images[i].width, gl3_images[i].height);
+    fclose(out);
+  }
+
+  // DEBUG: Go through patchlist and make sure nothing clashes
+  if (0) {
     size_t j;
     for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i)
       for (j = i; j < sizeof(patchlist)/sizeof(patchlist[0]); ++j)
@@ -633,7 +704,7 @@ static void gl3_InitPages(void) {
   }
 
   // DEBUG: Output texture page
-  if (1) {
+  if (0) {
     FILE *outf;
     byte *out = Z_Malloc(gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, PU_STATIC, NULL), *o;
 
@@ -671,4 +742,7 @@ void gl3_InitTextures(void) {
 void gl3_DeleteTextures(void) {
   GL3(glDeleteTextures(1, &gl3_paltex));
   GL3(glDeleteTextures(gl3_pagecount, gl3_texpages));
+
+  Z_Free(gl3_images);
+  gl3_imagecount = gl3_pagecount = 0;
 }

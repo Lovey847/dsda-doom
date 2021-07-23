@@ -33,7 +33,28 @@
 //
 // Make sure to #undef DEFEXTFUNC after using this macro
 #define GL3_EXTFUNCS                                                    \
-  DEFEXTFUNC(void, glDrawElements, GLenum, GLsizei, GLenum, const void*)
+  /* Drawing */                                                         \
+  DEFEXTFUNC(void, glDrawElements,                                      \
+             GLenum, GLsizei, GLenum, const void*)                      \
+                                                                        \
+  /* Shaders */                                                         \
+  DEFEXTFUNC(GLuint, glCreateShader, void)                              \
+  DEFEXTFUNC(void, glShaderSource,                                      \
+             GLuint, GLsizei, const GLchar**, const GLint*)             \
+  DEFEXTFUNC(void, glCompileShader, GLuint)                             \
+  DEFEXTFUNC(void, glGetShaderiv, GLuint, GLenum, GLint*)               \
+  DEFEXTFUNC(void, glGetShaderInfoLog,                                  \
+             GLuint, GLsizei, GLsizei*, GLchar*)                        \
+  DEFEXTFUNC(void, glDeleteShader, GLuint)                              \
+  DEFEXTFUNC(GLuint, glCreateProgram, void)                             \
+  DEFEXTFUNC(void, glAttachShader, GLuint, GLuint)                      \
+  DEFEXTFUNC(void, glLinkProgram, GLuint)                               \
+  DEFEXTFUNC(void, glGetProgramiv, GLuint, GLenum, GLint*)              \
+  DEFEXTFUNC(void, glGetProgramInfoLog,                                 \
+             GLuint, GLsizei, GLsizei*, GLchar*)                        \
+  DEFEXTFUNC(void, glDetachShader, GLuint, GLuint)                      \
+  DEFEXTFUNC(void, glDeleteProgram, GLuint)                             \
+  DEFEXTFUNC(void, glUseProgram, GLuint)
 
 // Extension function typedefs
 // I don't use the usual types since I need names
