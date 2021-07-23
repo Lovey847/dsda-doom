@@ -320,26 +320,28 @@ static void PackRects(rect_t *r, size_t rcnt) {
 //////////////////////////
 // Texture page renderer
 
+// TODO: Is this possible to do without rewriting so much code over and over?
 // Render patch into texture page
 static void RenderPatch(struct rect_s *r) {
   size_t x, post;
   byte *out;
   dsda_playpal_t *playpaldata;
   const rpatch_t *p;
+  const int alignedwidth = (r->width+3)&~3; // Align width to a 4-byte boundary
 
   // p->pixels doesn't have transparency pixels, so we have to do this ourselves
   p = R_CachePatchNum(r->data.patch.lump);
 
-  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
   playpaldata = dsda_PlayPalData();
 
-  memset(out, playpaldata->transparent, r->width*r->height);
+  memset(out, playpaldata->transparent, alignedwidth*r->height);
 
   for (x = 0; x < r->height; ++x) {
     for (post = 0; post < p->columns[x].numPosts; ++post) {
       // Make sure this is a rotation so that texture coordinates
       // can easily represent the intended orientation
-      memcpy(out + (r->height-1-x)*r->width + p->columns[x].posts[post].topdelta,
+      memcpy(out + (r->height-1-x)*alignedwidth + p->columns[x].posts[post].topdelta,
              p->columns[x].pixels + p->columns[x].posts[post].topdelta,
              p->columns[x].posts[post].length);
     }
@@ -359,21 +361,22 @@ static void RenderPatchRot(struct rect_s *r) {
   byte *out;
   dsda_playpal_t *playpaldata;
   const rpatch_t *p;
+  const int alignedwidth = (r->width+3)&~3;
 
   // p->pixels doesn't have transparency pixels, so we have to do this ourselves
   p = R_CachePatchNum(r->data.patch.lump);
 
-  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
   playpaldata = dsda_PlayPalData();
 
-  memset(out, playpaldata->transparent, r->width*r->height);
+  memset(out, playpaldata->transparent, alignedwidth*r->height);
 
   for (x = 0; x < r->width; ++x) {
     for (post = 0; post < p->columns[x].numPosts; ++post) {
       for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
            y-- > p->columns[x].posts[post].topdelta;)
       {
-        out[y*r->width + x] = p->columns[x].pixels[y];
+        out[y*alignedwidth + x] = p->columns[x].pixels[y];
       }
     }
   }
@@ -392,20 +395,21 @@ static void RenderTexture(struct rect_s *r) {
   byte *out;
   dsda_playpal_t *playpaldata;
   const rpatch_t *p;
+  const int alignedwidth = (r->width+3)&~3;
 
   // p->pixels doesn't have transparency pixels, so we have to do this ourselves
   p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
 
-  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
   playpaldata = dsda_PlayPalData();
 
-  memset(out, playpaldata->transparent, r->width*r->height);
+  memset(out, playpaldata->transparent, alignedwidth*r->height);
 
   for (x = 0; x < r->height; ++x) {
     for (post = 0; post < p->columns[x].numPosts; ++post) {
       // Make sure this is a rotation so that texture coordinates
       // can easily represent the intended orientation
-      memcpy(out + (r->height-1-x)*r->width + p->columns[x].posts[post].topdelta,
+      memcpy(out + (r->height-1-x)*alignedwidth + p->columns[x].posts[post].topdelta,
              p->columns[x].pixels + p->columns[x].posts[post].topdelta,
              p->columns[x].posts[post].length);
     }
@@ -425,21 +429,22 @@ static void RenderTextureRot(struct rect_s *r) {
   byte *out;
   dsda_playpal_t *playpaldata;
   const rpatch_t *p;
+  const int alignedwidth = (r->width+3)&~3;
 
   // p->pixels doesn't have transparency pixels, so we have to do this ourselves
   p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
 
-  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
   playpaldata = dsda_PlayPalData();
 
-  memset(out, playpaldata->transparent, r->width*r->height);
+  memset(out, playpaldata->transparent, alignedwidth*r->height);
 
   for (x = 0; x < r->width; ++x) {
     for (post = 0; post < p->columns[x].numPosts; ++post) {
       for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
            y-- > p->columns[x].posts[post].topdelta;)
       {
-        out[y*r->width + x] = p->columns[x].pixels[y];
+        out[y*alignedwidth + x] = p->columns[x].pixels[y];
       }
     }
   }
@@ -726,10 +731,6 @@ static void gl3_InitPages(void) {
 }
 
 void gl3_InitTextures(void) {
-  // Make sure all textures are read without padding
-  GL3(glPixelStorei(GL_PACK_ALIGNMENT, 1));
-  GL3(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
-
   // Initialize textures
   gl3_InitPal();
   gl3_InitPages();
