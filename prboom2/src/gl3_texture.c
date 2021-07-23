@@ -43,6 +43,8 @@ struct rect_s;
 typedef void (*rect_renderFunc_t)(struct rect_s *r);
 
 // Rect rendering functions
+static void RenderPatch(struct rect_s *r);
+static void RenderPatchRot(struct rect_s *r);
 static void RenderFlat(struct rect_s *r);
 
 typedef struct rect_s {
@@ -70,6 +72,32 @@ typedef struct rect_s {
 } rect_t;
 
 // Add graphics to rectangle list
+static void AddPatch(rect_t *r, int plump) {
+  int width, height;
+  const rpatch_t *p;
+
+  r->data.patch.lump = plump;
+
+  p = R_CachePatchNum(plump);
+
+  // Store patch rotated by default, rotation makes it upright but flipped
+  width = p->height;
+  height = p->width;
+
+  R_UnlockPatchNum(plump);
+
+  // Check if rect should be flipped
+  if (width > height) {
+    r->width = height;
+    r->height = width;
+    r->render = RenderPatchRot;
+  } else {
+    r->width = width;
+    r->height = height;
+    r->render = RenderPatch;
+  }
+}
+
 static void AddFlat(rect_t *r, int flump) {
   r->data.flat.lump = flump;
   r->render = RenderFlat;
@@ -188,6 +216,19 @@ static void PackRects(rect_t *r, size_t rcnt) {
   for (; r != end; ++r) {
     // Find region for rectangle
     for (region = regionbuf; region; region = region->next) {
+      // If there's a region to the right of this one, with
+      // the same y coordinate, with the same height, merge them together
+      if (region->next) {
+        while (region->next &&
+               (region->next->y == region->y) &&
+               (region->next->height == region->height) &&
+               (region->next->x == region->x+region->width))
+        {
+          region->width += region->next->width;
+          region->next = region->next->next;
+        }
+      }
+      
       if ((r->width > region->width) ||
           (r->height > region->height)) continue;
 
@@ -246,6 +287,71 @@ static void PackRects(rect_t *r, size_t rcnt) {
 
 //////////////////////////
 // Texture page renderer
+
+// Render patch into texture page
+static void RenderPatch(struct rect_s *r) {
+  size_t x, post;
+  byte *out;
+  dsda_playpal_t *playpaldata;
+  const rpatch_t *p;
+
+  // p->pixels doesn't have transparency pixels, so we have to do this ourselves
+  p = R_CachePatchNum(r->data.patch.lump);
+
+  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  playpaldata = dsda_PlayPalData();
+
+  memset(out, playpaldata->transparent, r->width*r->height);
+
+  for (x = 0; x < r->height; ++x) {
+    for (post = 0; post < p->columns[x].numPosts; ++post) {
+      // Make sure this is a rotation so that texture coordinates
+      // can easily represent the intended orientation
+      memcpy(out + (r->height-1-x)*r->width + p->columns[x].posts[post].topdelta,
+             p->columns[x].pixels + p->columns[x].posts[post].topdelta,
+             p->columns[x].posts[post].length);
+    }
+  }
+
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      r->x, r->y, r->width, r->height,
+                      GL_RED, GL_UNSIGNED_BYTE, out));
+
+  R_UnlockPatchNum(r->data.patch.lump);
+  Z_Free(out);
+}
+
+static void RenderPatchRot(struct rect_s *r) {
+  size_t x, post, y;
+  byte *out;
+  dsda_playpal_t *playpaldata;
+  const rpatch_t *p;
+
+  // p->pixels doesn't have transparency pixels, so we have to do this ourselves
+  p = R_CachePatchNum(r->data.patch.lump);
+
+  out = Z_Malloc(r->width*r->height, PU_STATIC, NULL);
+  playpaldata = dsda_PlayPalData();
+
+  memset(out, playpaldata->transparent, r->width*r->height);
+
+  for (x = 0; x < r->width; ++x) {
+    for (post = 0; post < p->columns[x].numPosts; ++post) {
+      for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
+           y-- > p->columns[x].posts[post].topdelta;)
+      {
+        out[y*r->width + x] = p->columns[x].pixels[y];
+      }
+    }
+  }
+
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      r->x, r->y, r->width, r->height,
+                      GL_RED, GL_UNSIGNED_BYTE, out));
+
+  R_UnlockPatchNum(r->data.patch.lump);
+  Z_Free(out);
+}
 
 // Render flat into texture page
 static void RenderFlat(struct rect_s *r) {
@@ -377,7 +483,7 @@ static void gl3_InitPages(void) {
     "STCFN069", "STCFN070", "STCFN071", "STCFN072", "STCFN073", "STCFN074",
     "STCFN075", "STCFN076", "STCFN077", "STCFN078", "STCFN079", "STCFN080",
     "STCFN081", "STCFN082", "STCFN083", "STCFN084", "STCFN085", "STCFN086",
-    "STCFN087", "STCFN088", "STCFN089", "STCFN090", "STCFN091", "STCFN091",
+    "STCFN087", "STCFN088", "STCFN089", "STCFN090", "STCFN091", "STCFN092",
     "STCFN093", "STCFN094", "STCFN095", "STCFN121", "STFB1", "STFB0", "STFB2",
     "STFB3", "STPB1", "STPB0", "STPB2", "STPB3",
     "STFST01", "STFST00", "STFST02", "STFTL00", "STFTR00", "STFOUCH0", "STFEVL0", "STFKILL0",
@@ -412,23 +518,34 @@ static void gl3_InitPages(void) {
     "WISCRT2", "WIENTER", "WILV33", "WILV31", "WILV35", "WILV34", "WILV30", "WILV32",
     "WILV36", "WILV37", "WILV38",
 
+    // DOOM II: Hell on Earth
+    "HELP", "BOSSBACK", "CWILV00", "CWILV01", "CWILV02", "CWILV03", "CWILV04", "CWILV05",
+    "CWILV06", "CWILV07", "CWILV08", "CWILV09", "CWILV10", "CWILV11", "CWILV12", "CWILV13",
+    "CWILV14", "CWILV15", "CWILV16", "CWILV17", "CWILV18", "CWILV19", "CWILV20", "CWILV21",
+    "CWILV22", "CWILV23", "CWILV24", "CWILV25", "CWILV26", "CWILV27", "CWILV28", "CWILV29",
+    "CWILV30", "CWILV31",
+
     // TODO: Add more games!
   };
 
   rect_t *rectbuf, *rect;
   size_t numrects, i;
-  int lump, fstart, fend;
+  int lump;
+  int sstart, send;
+  int fstart, fend;
 
   fstart = W_GetNumForName("F_START")+1;
   fend = W_GetNumForName("F_END");
 
-  numrects = sizeof(patchlist)/sizeof(patchlist[0]) + fend-fstart;
+  sstart = W_GetNumForName("S_START")+1;
+  send = W_GetNumForName("S_END");
+
+  numrects = sizeof(patchlist)/sizeof(patchlist[0]) + fend-fstart + send-sstart;
 
   rectbuf = Z_Malloc(sizeof(rect_t)*numrects, PU_STATIC, NULL);
   rect = rectbuf;
 
   // Go through patch list, adding each one
-#if 0
   for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i) {
     lump = W_CheckNumForName(patchlist[i]);
     if (lump < 0) {
@@ -438,9 +555,16 @@ static void gl3_InitPages(void) {
 
     AddPatch(rect++, lump);
   }
-#else
-  numrects -= sizeof(patchlist)/sizeof(patchlist[0]);
-#endif
+
+  // Go through sprites, adding each one
+  for (lump = sstart; lump < send; ++lump) {
+    if (W_LumpLength(lump) == 0) {
+      --numrects;
+      continue;
+    }
+
+    AddPatch(rect++, lump);
+  }
 
   // Go through flats, adding each one
   for (lump = fstart; lump < fend; ++lump) {
@@ -460,8 +584,17 @@ static void gl3_InitPages(void) {
 
   Z_Free(rectbuf);
 
+  // DEBUG: Go through patchlist and make sure nothing clashes
+  if (1) {
+    size_t j;
+    for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i)
+      for (j = i; j < sizeof(patchlist)/sizeof(patchlist[0]); ++j)
+        if (!strcmp(patchlist[i], patchlist[j]) && (i != j))
+          lprintf(LO_INFO, "%d and %d are %s!\n", (int)i, (int)j, patchlist[i]);
+  }
+
   // DEBUG: Output texture page
-  if (0) {
+  if (1) {
     FILE *outf;
     byte *out = Z_Malloc(gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, PU_STATIC, NULL), *o;
 
@@ -486,6 +619,10 @@ static void gl3_InitPages(void) {
 }
 
 void gl3_InitTextures(void) {
+  // Make sure all textures are read without padding
+  GL3(glPixelStorei(GL_PACK_ALIGNMENT, 1));
+  GL3(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
+
   // Initialize textures
   gl3_InitPal();
   gl3_InitPages();
