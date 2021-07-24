@@ -30,7 +30,7 @@ static const char vertexShader[] = SHADERSRC(
 
   void main() {
     gl_Position = invert;
-    coord = incoord*32768.0;
+    coord = incoord;
   }
 
   );
@@ -38,12 +38,13 @@ static const char vertexShader[] = SHADERSRC(
 static const char fragmentShader[] = SHADERSRC(
   in vec2 coord;
 
-  uniform sampler2D tex;
+  uniform usampler2D tex;
+  uniform sampler3D pal;
 
   out vec4 fragcolor;
 
   void main() {
-    fragcolor = texelFetch(tex, ivec2(coord), 0);
+    fragcolor = texelFetch(pal, ivec3(0, 0, texelFetch(tex, ivec2(coord), 0).r), 0);
   }
 
   );
@@ -118,7 +119,14 @@ static GLuint CreateProgram(const char *vertex, const char *fragment) {
 gl3_shader_t gl3_shaders[GL3_SHADER_COUNT];
 
 void gl3_InitShaders(void) {
+  GLint tex, pal;
   gl3_shaders[GL3_SHADER_PATCH].program = CreateProgram(vertexShader, fragmentShader);
+
+  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
+  tex = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "tex"));
+  pal = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "pal"));
+  GL3(gl3_glUniform1i(pal, 0));
+  GL3(gl3_glUniform1i(tex, 1));
 
   I_AtExit(gl3_DeleteShaders, true);
 }

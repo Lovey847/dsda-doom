@@ -18,6 +18,7 @@
 #include "gl3_main.h"
 #include "gl3_texture.h"
 #include "gl3_shader.h"
+#include "gl3_buffer.h"
 
 #include "lprintf.h"
 #include "i_video.h"
@@ -73,14 +74,22 @@ void gl3_Init(int width, int height) {
   // Create shaders
   gl3_InitShaders();
 
+  // Create buffers
+  gl3_InitBuffers(2048, 3072);
+
   GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
+
+  // Enable alpha blending
+  GL3(glEnable(GL_BLEND));
+  GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 }
 
 void gl3_Start(void) {
-  glClear(GL_COLOR_BUFFER_BIT);
+  GL3(glClear(GL_COLOR_BUFFER_BIT));
 }
 
 void gl3_Finish(void) {
+  gl3_DrawBuffers();
   SDL_GL_SwapWindow(sdl_window);
 }
 
@@ -107,13 +116,13 @@ void gl3_FillPatch(int lump, int n, int x, int y, int width, int height,
 void gl3_DrawNumPatch(int x, int y, int scrn, int lump, int cm,
                       enum patch_translation_e flags)
 {
-
+  gl3_DrawNumPatchPrecise(x, y, scrn, lump, cm, flags);
 }
 
 void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
                              enum patch_translation_e flags)
 {
-
+  gl3_AddImage(gl3_lumpimg[lump], x, y);
 }
 
 void gl3_PlotPixel(int scrn, int x, int y, byte color) {

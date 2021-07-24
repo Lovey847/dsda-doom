@@ -353,7 +353,7 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
 
   GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
                       r->x, r->y, r->width, r->height,
-                      GL_RED, GL_UNSIGNED_BYTE, out));
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
 
   Z_Free(out);
 
@@ -414,7 +414,7 @@ static void RenderFlat(struct rect_s *r) {
   const byte *f = W_CacheLumpNum(r->data.flat.lump);
   GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
                       r->x, r->y, 64, 64,
-                      GL_RED, GL_UNSIGNED_BYTE, f));
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, f));
   W_UnlockLumpNum(r->data.flat.lump);
 
   // Set image properties
@@ -437,14 +437,22 @@ static void RenderRects(rect_t *rects, size_t rcnt) {
   for (; rects != end; ++rects) {
     // Check if this is on a new page
     if ((rects->x|rects->y) == 0) {
-      GL3(glActiveTexture(GL_TEXTURE0+gl3_pagecount));
+      // The first texture unit is used by the palette, use succeeding textures
+      GL3(glActiveTexture(GL_TEXTURE1+gl3_pagecount));
 
       // TODO: Save size of texture page so this uses less memory!
       GL3(glGenTextures(1, gl3_texpages+gl3_pagecount));
       GL3(glBindTexture(GL_TEXTURE_2D, gl3_texpages[gl3_pagecount]));
-      GL3(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
+
+      // Set texture parameters
+      GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+      GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+      GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+      GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+
+      GL3(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI,
                        gl3_GL_MAX_TEXTURE_SIZE, gl3_GL_MAX_TEXTURE_SIZE,
-                       0, GL_RED, GL_UNSIGNED_BYTE, NULL));
+                       0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, NULL));
       if (gl3_errno != GL_NO_ERROR)
         I_Error("Couldn't allocate texture page!\n");
 
@@ -460,6 +468,12 @@ static void RenderRects(rect_t *rects, size_t rcnt) {
 
 gl3_img_t *gl3_images;
 size_t gl3_imagecount;
+
+// Lump number to image LUT
+gl3_img_t **gl3_lumpimg;
+
+// Texture ID to image LUT
+gl3_img_t **gl3_teximg;
 
 GLuint gl3_paltex;
 GLuint gl3_texpages[GL3_MAXPAGES];
@@ -494,6 +508,15 @@ static void gl3_InitPal(void) {
   depth = 256;
 
   GL3(glBindTexture(GL_TEXTURE_3D, gl3_paltex));
+
+  // Set texture parameters
+  GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+  GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+  GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+  GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+
+  // Create texture
   GL3(glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8,
                    width, height, depth,
                    0, GL_RGBA, GL_UNSIGNED_BYTE, NULL));
@@ -533,6 +556,26 @@ static void gl3_InitPages(void) {
   // Load all patches, textures, flats, etc. into the texture pages
   // Unidentifiable patch list
   static const char * const patchlist[] = {
+    // dsda-doom.wad
+    "DIG033", "DIG034", "DIG035", "DIG036", "DIG037", "DIG038", "DIG039",
+    "DIG040", "DIG041", "DIG042", "DIG043", "DIG044", "DIG045", "DIG046",
+    "DIG047", "DIG048", "DIG049", "DIG050", "DIG051", "DIG052", "DIG053",
+    "DIG054", "DIG055", "DIG056", "DIG057", "DIG058", "DIG059", "DIG060",
+    "DIG061", "DIG062", "DIG063", "DIG064", "DIG065", "DIG066", "DIG067",
+    "DIG068", "DIG069", "DIG070", "DIG071", "DIG072", "DIG073", "DIG074",
+    "DIG075", "DIG076", "DIG077", "DIG078", "DIG079", "DIG080", "DIG081",
+    "DIG082", "DIG083", "DIG084", "DIG085", "DIG086", "DIG087", "DIG088",
+    "DIG089", "DIG090", "DIG091", "DIG092", "DIG093", "DIG094", "DIG095",
+    "DIG096", "DIG097", "DIG098", "DIG099", "DIG100", "DIG101", "DIG102",
+    "DIG103", "DIG104", "DIG105", "DIG106", "DIG107", "DIG108", "DIG109",
+    "DIG110", "DIG111", "DIG112", "DIG113", "DIG114", "DIG115", "DIG116",
+    "DIG117", "DIG118", "DIG119", "DIG120", "DIG121", "DIG122", "DIG123",
+    "DIG124", "DIG125", "DIG126", "STBR123", "STBR124", "STBR125", "STBR126",
+    "STBR127", "BOXUL", "BOXUC", "BOXUR", "BOXCL", "BOXCC", "BOXCR", "BOXLL",
+    "BOXLC", "BOXLR", "STKEYS6", "STKEYS7", "STKEYS8", "STCFN096", "M_BUTT1",
+    "M_BUTT2", "M_COLORS", "M_PALNO", "M_PALSEL", "M_VBOX", "CROSS1",
+    "CROSS2", "CROSS3",
+
     // Ultimate DOOM
     "HELP1", "CREDIT", "VICTORY2", "TITLEPIC", "PFUB1", "PFUB2",
     "END0", "END1", "END2", "END3", "END4", "END5", "END6",
@@ -562,7 +605,7 @@ static void gl3_InitPages(void) {
     "STFST21", "STFST20", "STFST22", "STFTL20", "STFTR20", "STFOUCH2", "STFEVL2", "STFKILL2",
     "STFST31", "STFST30", "STFST32", "STFTL30", "STFTR30", "STFOUCH3", "STFEVL3", "STFKILL3",
     "STFST41", "STFST40", "STFST42", "STFTL40", "STFTR40", "STFOUCH4", "STFEVL4", "STFKILL4",
-    "STFGOD0", "STFDEAD0", "M_DOOM", "M_RDTHIS", "M_OPTION", "M_QUITG", "M_NGAME", "M_SKULL1"
+    "STFGOD0", "STFDEAD0", "M_DOOM", "M_RDTHIS", "M_OPTION", "M_QUITG", "M_NGAME", "M_SKULL1",
     "M_SKULL2", "M_THERMO", "M_THERMR", "M_THERMM", "M_THERML", "M_ENDGAM", "M_PAUSE", "M_MESSG",
     "M_MSGON", "M_MSGOFF", "M_EPISOD", "M_EPI1", "M_EPI2", "M_EPI3", "M_HURT", "M_JKILL",
     "M_ROUGH", "M_SKILL", "M_NEWG", "M_ULTRA", "M_NMARE", "M_SVOL", "M_OPTTTL", "M_SAVEG",
@@ -621,6 +664,10 @@ static void gl3_InitPages(void) {
   img = gl3_images = Z_Malloc(sizeof(gl3_img_t)*gl3_imagecount, PU_STATIC, NULL);
   rect = rectbuf = Z_Malloc(sizeof(rect_t)*gl3_imagecount, PU_STATIC, NULL);
 
+  // Allocate lump and texture id LUT
+  gl3_lumpimg = Z_Malloc(sizeof(gl3_img_t**)*numlumps, PU_STATIC, NULL);
+  gl3_teximg = Z_Malloc(sizeof(gl3_img_t**)*numtextures, PU_STATIC, NULL);
+
   // Go through patch list, adding each one
   for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i) {
     lump = W_CheckNumForName(patchlist[i]);
@@ -629,6 +676,7 @@ static void gl3_InitPages(void) {
       continue;
     }
 
+    gl3_lumpimg[lump] = img;
     rect->img = img++;
     AddPatch(rect++, lump);
   }
@@ -640,12 +688,14 @@ static void gl3_InitPages(void) {
       continue;
     }
 
+    gl3_lumpimg[lump] = img;
     rect->img = img++;
     AddPatch(rect++, lump);
   }
 
   // Go through textures, adding each one
   for (lump = 0; lump < numtextures; ++lump) {
+    gl3_teximg[lump] = img;
     rect->img = img++;
     AddTexture(rect++, lump);
   }
@@ -657,6 +707,7 @@ static void gl3_InitPages(void) {
       continue;
     }
 
+    gl3_lumpimg[lump] = img;
     rect->img = img++;
     AddFlat(rect++, lump);
   }
@@ -745,5 +796,7 @@ void gl3_DeleteTextures(void) {
   GL3(glDeleteTextures(gl3_pagecount, gl3_texpages));
 
   Z_Free(gl3_images);
+  Z_Free(gl3_lumpimg);
+  Z_Free(gl3_teximg);
   gl3_imagecount = gl3_pagecount = 0;
 }

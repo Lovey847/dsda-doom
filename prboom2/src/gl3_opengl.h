@@ -33,10 +33,6 @@
 //
 // Make sure to #undef DEFEXTFUNC after using this macro
 #define GL3_EXTFUNCS                                                    \
-  /* Drawing */                                                         \
-  DEFEXTFUNC(void, glDrawElements,                                      \
-             GLenum, GLsizei, GLenum, const void*)                      \
-                                                                        \
   /* Shaders */                                                         \
   DEFEXTFUNC(GLuint, glCreateShader, GLenum)                            \
   DEFEXTFUNC(void, glShaderSource,                                      \
@@ -54,7 +50,26 @@
              GLuint, GLsizei, GLsizei*, GLchar*)                        \
   DEFEXTFUNC(void, glDetachShader, GLuint, GLuint)                      \
   DEFEXTFUNC(void, glDeleteProgram, GLuint)                             \
-  DEFEXTFUNC(void, glUseProgram, GLuint)
+  DEFEXTFUNC(void, glUseProgram, GLuint)                                \
+                                                                        \
+  /* Shader uniforms */                                                 \
+  DEFEXTFUNC(GLint, glGetUniformLocation, GLuint, const GLchar*)        \
+  DEFEXTFUNC(void, glUniform1i, GLint, GLint)                           \
+                                                                        \
+  /* Vertex buffers */                                                  \
+  DEFEXTFUNC(void, glGenVertexArrays, GLsizei, GLuint*)                 \
+  DEFEXTFUNC(void, glBindVertexArray, GLuint)                           \
+  DEFEXTFUNC(void, glGenBuffers, GLsizei, GLuint*)                      \
+  DEFEXTFUNC(void, glBindBuffer, GLenum, GLuint)                        \
+  DEFEXTFUNC(void, glBufferData,                                        \
+             GLenum, GLsizeiptr, const void*, GLenum)                   \
+  DEFEXTFUNC(void, glVertexAttribPointer,                               \
+             GLuint, GLint, GLenum, GLboolean, GLsizei, const void*)    \
+  DEFEXTFUNC(void, glEnableVertexAttribArray, GLuint)                   \
+  DEFEXTFUNC(void, glDeleteBuffers, GLsizei, const GLuint*)             \
+  DEFEXTFUNC(void, glDeleteVertexArrays, GLsizei, const GLuint*)        \
+  DEFEXTFUNC(void, glBufferSubData,                                     \
+             GLenum, GLintptr, GLsizeiptr, const void*)
 
 // Extension function typedefs
 // I don't use the usual types since I need names

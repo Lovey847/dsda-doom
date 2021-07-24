@@ -20,6 +20,18 @@
 
 #include "gl3_main.h"
 
+// Textures used in renderer
+enum {
+  // 3D RGBA8 texture containing every possible palette based off COLORMAP and PLAYPAL
+  GL3_TEXTURE_PALETTE = 0,
+
+  // 2D R8UI texture pages containing every texture
+  GL3_TEXTURE_PAGE0, GL3_TEXTURE_PAGE1, GL3_TEXTURE_PAGE2, GL3_TEXTURE_PAGE3,
+  GL3_TEXTURE_PAGE4, GL3_TEXTURE_PAGE5, GL3_TEXTURE_PAGE6, GL3_TEXTURE_PAGE7,
+
+  GL3_TEXTURE_COUNT
+};
+
 // Texture coordinates
 typedef struct gl3_texcoord_s {
   short x, y;
@@ -44,6 +56,12 @@ typedef struct gl3_img_s {
 // List of images in texture page
 extern gl3_img_t *gl3_images;
 extern size_t gl3_imagecount;
+
+// Lump number to image LUT
+extern gl3_img_t **gl3_lumpimg;
+
+// Texture ID to image LUT
+extern gl3_img_t **gl3_teximg;
 
 // Palette texture
 // 3D texture filled with every combination of
