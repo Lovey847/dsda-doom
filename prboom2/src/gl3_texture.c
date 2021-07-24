@@ -53,6 +53,10 @@ static void RenderFlat(struct rect_s *r);
 typedef struct rect_s {
   gl3_img_t *img; // Image this rectangle refers to
 
+  rect_renderFunc_t render; // Function to render rect into texture
+
+  size_t page; // Texture page this rect resides in
+
   // The first rectangle of a texture page is always at 0, 0.
   // That means whenever a rectangle is at 0, 0, the rectangle
   // couldn't fit on the last page and a new page should be made
@@ -73,7 +77,7 @@ typedef struct rect_s {
     } texture;
   } data;
 
-  rect_renderFunc_t render; // Function to render rect into texture
+  dboolean packed; // Has this rectangle been packed into a page yet?
 } rect_t;
 
 // Routines for adding various graphics to rectangle list
@@ -220,6 +224,8 @@ static void SortRects(rect_t *r, size_t rcnt) {
 static void PackRects(rect_t *r, size_t rcnt) {
   region_t *regionbuf, *region, *freeregion, regionval;
   rect_t * const end = r+rcnt;
+  rect_t *unpacked = r; // First unpacked rectangle
+  size_t curpage = 0;
 
   regionbuf = Z_Malloc((sizeof(rect_t)*2)*rcnt, PU_STATIC, NULL);
 
@@ -236,74 +242,98 @@ static void PackRects(rect_t *r, size_t rcnt) {
   // Sort rectangle array, from tallest to shortest
   SortRects(r, rcnt);
 
+  // Do this while there are unpacked rectangles
   // Loop through all rectangles
-  for (; r != end; ++r) {
-    // Find region for rectangle
-    for (region = regionbuf; region; region = region->next) {
-      // If there's a region to the right of this one, with
-      // the same y coordinate, and the same height, merge them together
-      if (region->next) {
-        while (region->next &&
-               (region->next->y == region->y) &&
-               (region->next->height == region->height) &&
-               (region->next->x == region->x+region->width))
-        {
-          region->width += region->next->width;
-          region->next = region->next->next;
+  do {
+    r = unpacked;
+    unpacked = NULL;
+
+    // If we've reached the page limit, error out
+    if (curpage >= GL3_MAXPAGES) I_Error("PackRects: Ran out of room!\n");
+
+    for (; r != end; ++r) {
+      // If rectangle is already packed, skip it
+      if (r->packed) continue;
+
+      // Find region for rectangle
+      for (region = regionbuf; region; region = region->next) {
+        // If there's a region to the right of this one, with
+        // the same y coordinate, and the same height, merge them together
+        if (region->next) {
+          while (region->next &&
+                 (region->next->y == region->y) &&
+                 (region->next->height == region->height) &&
+                 (region->next->x == region->x+region->width))
+          {
+            region->width += region->next->width;
+            region->next = region->next->next;
+          }
         }
+
+        if ((r->width > region->width) ||
+            (r->height > region->height)) continue;
+
+        // Region found, split region into 2
+        regionval = *region; // Save value of old region
+
+        r->x = regionval.x;
+        r->y = regionval.y;
+        r->page = curpage;
+        r->packed = true;
+
+        // If this is the first rectangle of the row, split differently
+        if (r->x == 0) {
+          // Right region, prioritize this when searching for regions
+          region->next = freeregion;
+          region->x = regionval.x+r->width;
+          region->y = regionval.y;
+          region->width = regionval.width-r->width;
+          region->height = r->height;
+
+          // Bottom region
+          freeregion->next = regionval.next;
+          freeregion->x = regionval.x;
+          freeregion->y = regionval.y+r->height;
+          freeregion->width = regionval.width;
+          freeregion->height = regionval.height-r->height;
+        } else {
+          // Bottom region, prioritize this when searching for regions
+          region->next = freeregion;
+          region->x = regionval.x;
+          region->y = regionval.y+r->height;
+          region->width = r->width;
+          region->height = regionval.height-r->height;
+
+          // Right region
+          freeregion->next = regionval.next;
+          freeregion->x = regionval.x+r->width;
+          freeregion->y = regionval.y;
+          freeregion->width = regionval.width-r->width;
+          freeregion->height = regionval.height;
+        }
+
+        ++freeregion;
+
+        // Found region for rectangle
+        break;
       }
 
-      if ((r->width > region->width) ||
-          (r->height > region->height)) continue;
-
-      // Region found, split region into 2
-      regionval = *region; // Save value of old region
-
-      r->x = regionval.x;
-      r->y = regionval.y;
-
-      // If this is the first rectangle of the row, split differently
-      if (r->x == 0) {
-        // Right region, prioritize this when searching for regions
-        region->next = freeregion;
-        region->x = regionval.x+r->width;
-        region->y = regionval.y;
-        region->width = regionval.width-r->width;
-        region->height = r->height;
-
-        // Bottom region
-        freeregion->next = regionval.next;
-        freeregion->x = regionval.x;
-        freeregion->y = regionval.y+r->height;
-        freeregion->width = regionval.width;
-        freeregion->height = regionval.height-r->height;
-      } else {
-        // Bottom region, prioritize this when searching for regions
-        region->next = freeregion;
-        region->x = regionval.x;
-        region->y = regionval.y+r->height;
-        region->width = r->width;
-        region->height = regionval.height-r->height;
-
-        // Right region
-        freeregion->next = regionval.next;
-        freeregion->x = regionval.x+r->width;
-        freeregion->y = regionval.y;
-        freeregion->width = regionval.width-r->width;
-        freeregion->height = regionval.height;
+      if (!region) {
+        // Can't pack rectangle into texture page, save it for the next page
+        if (!unpacked) unpacked = r;
       }
-
-      ++freeregion;
-
-      // Found region for rectangle
-      break;
     }
 
-    // TODO: Don't stop packing because of this!
-    if (!region) {
-      I_Error("PackRects: Ran out of space!\n");
-    }
-  }
+    // Setup new region for next rectangle
+    regionbuf->next = NULL;
+    regionbuf->x = 0;
+    regionbuf->y = 0;
+    regionbuf->width = gl3_GL_MAX_TEXTURE_SIZE;
+    regionbuf->height = gl3_GL_MAX_TEXTURE_SIZE;
+
+    // Increment current texture page
+    ++curpage;
+  } while (unpacked);
 
   // Free regions
   Z_Free(regionbuf);
@@ -358,7 +388,7 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
   Z_Free(out);
 
   // Set image properties
-  r->img->page = gl3_pagecount-1;
+  r->img->page = r->page;
 
   if (rot) {
     r->img->tl.x = r->img->bl.x = r->x;
@@ -418,7 +448,7 @@ static void RenderFlat(struct rect_s *r) {
   W_UnlockLumpNum(r->data.flat.lump);
 
   // Set image properties
-  r->img->page = gl3_pagecount-1;
+  r->img->page = r->page;
 
   r->img->tl.x = r->img->bl.x = r->x;
   r->img->tr.x = r->img->br.x = r->x+r->width;
@@ -433,16 +463,18 @@ static void RenderFlat(struct rect_s *r) {
 // Render all rectangles into texture pages
 static void RenderRects(rect_t *rects, size_t rcnt) {
   rect_t *end = rects+rcnt;
+  size_t curpage = 0;
 
   for (; rects != end; ++rects) {
     // Check if this is on a new page
-    if ((rects->x|rects->y) == 0) {
-      // The first texture unit is used by the palette, use succeeding textures
-      GL3(glActiveTexture(GL_TEXTURE1+gl3_pagecount));
+    if (rects->page >= gl3_pagecount) {
+      lprintf(LO_INFO, "RenderRects: Making page %d\n", (int)gl3_pagecount);
+      curpage = gl3_pagecount;
+      GL3(glActiveTexture(GL3_TEXTURE_PAGE0+curpage));
 
       // TODO: Save size of texture page so this uses less memory!
-      GL3(glGenTextures(1, gl3_texpages+gl3_pagecount));
-      GL3(glBindTexture(GL_TEXTURE_2D, gl3_texpages[gl3_pagecount]));
+      GL3(glGenTextures(1, gl3_texpages+curpage));
+      GL3(glBindTexture(GL_TEXTURE_2D, gl3_texpages[curpage]));
 
       // Set texture parameters
       GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
@@ -457,6 +489,12 @@ static void RenderRects(rect_t *rects, size_t rcnt) {
         I_Error("Couldn't allocate texture page!\n");
 
       ++gl3_pagecount;
+    }
+
+    // Check if this rect is on a different page
+    if (rects->page != curpage) {
+      curpage = rects->page;
+      GL3(glActiveTexture(GL3_TEXTURE_PAGE0+curpage));
     }
 
     rects->render(rects);
@@ -493,6 +531,9 @@ static void gl3_InitPal(void) {
   int colmapnum;
 
   dsda_playpal_t *playpaldata = dsda_PlayPalData();
+
+  // Set active texture
+  GL3(glActiveTexture(GL3_TEXTURE_PALETTE));
 
   // Make palette texture
   GL3(glGenTextures(1, &gl3_paltex));
@@ -668,6 +709,9 @@ static void gl3_InitPages(void) {
   gl3_lumpimg = Z_Malloc(sizeof(gl3_img_t**)*numlumps, PU_STATIC, NULL);
   gl3_teximg = Z_Malloc(sizeof(gl3_img_t**)*numtextures, PU_STATIC, NULL);
 
+  // Make sure rectbuf is filled with 0's
+  memset(rectbuf, 0, sizeof(rect_t)*gl3_imagecount);
+
   // Go through patch list, adding each one
   for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i) {
     lump = W_CheckNumForName(patchlist[i]);
@@ -710,6 +754,16 @@ static void gl3_InitPages(void) {
     gl3_lumpimg[lump] = img;
     rect->img = img++;
     AddFlat(rect++, lump);
+  }
+
+  // Set default lumps, for lumps that don't get put in texture page
+  // This should never happen, but I don't want it to be an error condition
+  lump = W_CheckNumForName("-N0_TEX-");
+  if (lump >= 0) {
+    for (i = 0; i < numlumps; ++i) {
+      if (!gl3_lumpimg[i])
+        gl3_lumpimg[i] = gl3_lumpimg[lump];
+    }
   }
 
   // All rectangles added, pack rectangles
@@ -757,26 +811,32 @@ static void gl3_InitPages(void) {
 
   // DEBUG: Output texture page
   if (M_CheckParm("-gl3debug_writepages")) {
-    FILE *outf;
-    byte *out = Z_Malloc(gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, PU_STATIC, NULL), *o;
+    for (i = 0; i < gl3_pagecount; ++i) {
+      char name[] = "page0.data";
+      FILE *outf;
+      byte *out = Z_Malloc(gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, PU_STATIC, NULL), *o;
 
-    const byte *playpal = V_GetPlaypal();
+      const byte *playpal = V_GetPlaypal();
 
-    GL3(glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, out));
+      GL3(glActiveTexture(GL3_TEXTURE_PAGE0+i));
+      GL3(glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB_INTEGER, GL_UNSIGNED_BYTE, out));
 
-    for (o = out+gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3 - 3; o != out-3; o -= 3) {
-      byte ind = *o;
-      o[2] = playpal[2+ind*3];
-      o[1] = playpal[1+ind*3];
-      o[0] = playpal[0+ind*3];
+      for (o = out+gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3 - 3; o != out-3; o -= 3) {
+        byte ind = *o;
+        o[2] = playpal[2+ind*3];
+        o[1] = playpal[1+ind*3];
+        o[0] = playpal[0+ind*3];
+      }
+
+      name[4] = '0'+i;
+      outf = fopen(name, "wb");
+      if (outf) {
+        fwrite(out, 1, gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, outf);
+        fclose(outf);
+      } else lprintf(LO_INFO, "gl3_InitPages: Failed to create %s!\n", name);
+
+      Z_Free(out);
     }
-
-    outf = fopen("page.data", "wb");
-
-    fwrite(out, 1, gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, outf);
-    fclose(outf);
-
-    Z_Free(out);
   }
 }
 

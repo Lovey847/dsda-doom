@@ -23,7 +23,7 @@
 // Textures used in renderer
 enum {
   // 3D RGBA8 texture containing every possible palette based off COLORMAP and PLAYPAL
-  GL3_TEXTURE_PALETTE = 0,
+  GL3_TEXTURE_PALETTE = GL_TEXTURE0,
 
   // 2D R8UI texture pages containing every texture
   GL3_TEXTURE_PAGE0, GL3_TEXTURE_PAGE1, GL3_TEXTURE_PAGE2, GL3_TEXTURE_PAGE3,
