@@ -379,6 +379,7 @@ function(AddGameExecutable TARGET SOURCES)
             gl3_opengl.c
             gl3_main.c
             gl3_texture.c
+            gl3_shader.c
         )
     endif()
 

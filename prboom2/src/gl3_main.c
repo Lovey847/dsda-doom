@@ -17,6 +17,7 @@
 
 #include "gl3_main.h"
 #include "gl3_texture.h"
+#include "gl3_shader.h"
 
 #include "lprintf.h"
 #include "i_video.h"
@@ -68,6 +69,11 @@ void gl3_Init(int width, int height) {
 
   // Create textures
   gl3_InitTextures();
+
+  // Create shaders
+  gl3_InitShaders();
+
+  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
 }
 
 void gl3_Start(void) {

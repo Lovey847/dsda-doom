@@ -22,6 +22,7 @@
 #include "i_system.h"
 #include "w_wad.h"
 #include "r_patch.h"
+#include "m_argv.h"
 
 #include "dsda/palette.h"
 
@@ -669,7 +670,7 @@ static void gl3_InitPages(void) {
   Z_Free(rectbuf);
 
   // DEBUG: Log all images
-  if (1) {
+  if (M_CheckParm("-gl3debug_writeimages")) {
     FILE *out = fopen("img.txt", "w");
     for (i = 0; i < gl3_imagecount; ++i)
       fprintf(out,
@@ -695,7 +696,7 @@ static void gl3_InitPages(void) {
   }
 
   // DEBUG: Go through patchlist and make sure nothing clashes
-  if (0) {
+  if (M_CheckParm("-gl3debug_testpatchlist")) {
     size_t j;
     for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i)
       for (j = i; j < sizeof(patchlist)/sizeof(patchlist[0]); ++j)
@@ -704,7 +705,7 @@ static void gl3_InitPages(void) {
   }
 
   // DEBUG: Output texture page
-  if (0) {
+  if (M_CheckParm("-gl3debug_writepages")) {
     FILE *outf;
     byte *out = Z_Malloc(gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, PU_STATIC, NULL), *o;
 

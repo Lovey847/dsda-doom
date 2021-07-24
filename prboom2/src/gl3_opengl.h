@@ -38,7 +38,7 @@
              GLenum, GLsizei, GLenum, const void*)                      \
                                                                         \
   /* Shaders */                                                         \
-  DEFEXTFUNC(GLuint, glCreateShader, void)                              \
+  DEFEXTFUNC(GLuint, glCreateShader, GLenum)                            \
   DEFEXTFUNC(void, glShaderSource,                                      \
              GLuint, GLsizei, const GLchar**, const GLint*)             \
   DEFEXTFUNC(void, glCompileShader, GLuint)                             \
