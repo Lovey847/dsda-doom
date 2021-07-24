@@ -30,7 +30,8 @@ enum {
 
   // 2D R8UI texture pages containing every patch, sprite, etc.
   // Categorized for shaders
-  GL3_TEXTURE_PATCHES, GL3_TEXTURE_SPRITES, GL3_TEXTURE_WALLS, GL3_TEXTURE_FLATS,
+  GL3_TEXTURE_PATCHES, GL3_TEXTURE_SPRITES,
+  GL3_TEXTURE_WALLS, GL3_TEXTURE_FLATS,
 
   GL3_TEXTURE_COUNT
 };
@@ -57,12 +58,6 @@ typedef struct gl3_img_s {
 extern gl3_img_t *gl3_images;
 extern size_t gl3_imagecount;
 
-// Lump number to image LUT
-extern gl3_img_t **gl3_lumpimg;
-
-// Texture ID to image LUT
-extern gl3_img_t **gl3_teximg;
-
 extern GLuint gl3_textures[GL3_TEXTURE_COUNT];
 
 // Initialize texture objects
@@ -70,5 +65,18 @@ void gl3_InitTextures(void);
 
 // Delete textures
 void gl3_DeleteTextures(void);
+
+// Get patch from lump number
+// Returns NULL if patch is not in texture
+const gl3_img_t *gl3_GetPatch(int lump);
+
+// Get wall texture from texture ID
+const gl3_img_t *gl3_GetWall(int id);
+
+// Get flat from lump number
+// Returns NULL if flat is not in texture
+static INLINE const gl3_img_t *gl3_GetFlat(int lump) {
+  return gl3_GetPatch(lump);
+}
 
 #endif //_GL3_TEXTURE_H

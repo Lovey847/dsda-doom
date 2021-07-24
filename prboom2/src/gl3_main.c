@@ -24,6 +24,22 @@
 #include "i_video.h"
 #include "w_wad.h"
 
+// Report invalid patch
+static void ReportInvalidPatch(int lump) {
+  static int invalidpatches[32];
+  static size_t invalidpatchcount = 0;
+
+  size_t i;
+
+  if (invalidpatchcount >= 32) return;
+
+  for (i = 0; i < invalidpatchcount; ++i)
+    if (invalidpatches[i] == lump) return;
+
+  invalidpatches[invalidpatchcount++] = lump;
+  lprintf(LO_INFO, "ReportInvalidPatch: Invalid patch %d!\n", lump);
+}
+
 // OpenGL error code
 int gl3_errno;
 
@@ -40,7 +56,7 @@ void gl3_Init(int width, int height) {
   if (!gl3_InitOpenGL()) I_Error("Couldn't load extension functions!");
 
   // Set clear color
-  GL3(glClearColor(1.f, 0.f, 0.f, 1.f));
+  GL3(glClearColor(0.f, 0.f, 0.f, 1.f));
 
   // Log opengl information
   vendor = GL3(glGetString(GL_VENDOR));
@@ -59,7 +75,7 @@ void gl3_Init(int width, int height) {
 
   // Get implementation values
   GL3(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl3_GL_MAX_TEXTURE_SIZE));
-  gl3_GL_MAX_TEXTURE_SIZE >>= 3;
+  gl3_GL_MAX_TEXTURE_SIZE >>= 2;
   GL3(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
   lprintf(LO_INFO,
           "gl3_Init: OpenGL implementation information:\n"
@@ -122,7 +138,11 @@ void gl3_DrawNumPatch(int x, int y, int scrn, int lump, int cm,
 void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
                              enum patch_translation_e flags)
 {
-  gl3_AddImage(gl3_lumpimg[lump], x, y);
+  const gl3_img_t *img = gl3_GetPatch(lump);
+
+  // Log invalid patches
+  if (!img) ReportInvalidPatch(lump);
+  else gl3_AddImage(img, x, y);
 }
 
 void gl3_PlotPixel(int scrn, int x, int y, byte color) {

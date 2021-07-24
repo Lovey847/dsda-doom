@@ -48,17 +48,17 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
                    const unsigned short *inds, size_t indcnt);
 
 // Add image to buffer at specified position
-void gl3_AddImage(gl3_img_t *img, float x, float y);
+void gl3_AddImage(const gl3_img_t *img, float x, float y);
 
 // Add triangle to buffer
 static const unsigned short gl3_triangleInds[3] = {0, 1, 2};
-static INLINE void gl3_AddTriangle(gl3_vert_t verts[3]) {
+static INLINE void gl3_AddTriangle(const gl3_vert_t verts[3]) {
   gl3_AddVerts(verts, 3, gl3_triangleInds, 3);
 }
 
 // Add quad to buffer
 static const unsigned short gl3_quadInds[6] = {0, 1, 2, 3, 1, 2};
-static INLINE void gl3_AddQuad(gl3_vert_t verts[4]) {
+static INLINE void gl3_AddQuad(const gl3_vert_t verts[4]) {
   gl3_AddVerts(verts, 4, gl3_quadInds, 6);
 }
 

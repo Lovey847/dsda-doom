@@ -429,8 +429,6 @@ static void RenderFlat(struct rect_s *r) {
 static void RenderRects(rect_t *rects, size_t rcnt, size_t page) {
   rect_t *end = rects+rcnt;
 
-  lprintf(LO_INFO, "RenderRects: Making page %d\n", (int)page);
-
   GL3(glActiveTexture(GL_TEXTURE0+page));
 
   GL3(glBindTexture(GL_TEXTURE_2D, gl3_textures[page]));
@@ -459,7 +457,7 @@ gl3_img_t *gl3_images;
 size_t gl3_imagecount;
 
 // Lump number to image LUT
-gl3_img_t **gl3_lumpimg;
+static gl3_img_t **gl3_lumpimg;
 
 // Texture ID to image LUT
 gl3_img_t **gl3_teximg;
@@ -652,11 +650,13 @@ static void gl3_InitPages(void) {
   rect = rectbuf = Z_Malloc(sizeof(rect_t)*gl3_imagecount, PU_STATIC, NULL);
 
   // Allocate lump and texture id LUT
-  gl3_lumpimg = Z_Malloc(sizeof(gl3_img_t**)*numlumps, PU_STATIC, NULL);
-  gl3_teximg = Z_Malloc(sizeof(gl3_img_t**)*numtextures, PU_STATIC, NULL);
+  gl3_lumpimg = Z_Malloc(sizeof(gl3_img_t*)*numlumps, PU_STATIC, NULL);
+  gl3_teximg = Z_Malloc(sizeof(gl3_img_t*)*numtextures, PU_STATIC, NULL);
 
-  // Make sure rectbuf is filled with 0's
+  // Make sure rectbuf and LUT's are zeroed out
   memset(rectbuf, 0, sizeof(rect_t)*gl3_imagecount);
+  memset(gl3_lumpimg, 0, sizeof(gl3_img_t*)*numlumps);
+  memset(gl3_teximg, 0, sizeof(gl3_img_t*)*numtextures);
 
   // Go through patch list, adding each one
   for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i) {
@@ -731,16 +731,6 @@ static void gl3_InitPages(void) {
 
   // Now we're done with the rectangles
   Z_Free(rectbuf);
-
-  // Set default lumps, for lumps that don't get put in texture page
-  // This should never happen, but I don't want it to be an error condition
-  lump = W_CheckNumForName("-N0_TEX-");
-  if (lump >= 0) {
-    for (i = 0; i < numlumps; ++i) {
-      if (!gl3_lumpimg[i])
-        gl3_lumpimg[i] = gl3_lumpimg[lump];
-    }
-  }
 
   // DEBUG: Log all images
   if (M_CheckParm("-gl3debug_writeimages")) {
@@ -826,4 +816,14 @@ void gl3_DeleteTextures(void) {
   Z_Free(gl3_lumpimg);
   Z_Free(gl3_teximg);
   gl3_imagecount = 0;
+}
+
+const gl3_img_t *gl3_GetPatch(int lump) {
+  if (lump >= numlumps) return NULL;
+  return gl3_lumpimg[lump];
+}
+
+const gl3_img_t *gl3_GetWall(int id) {
+  if (id >= numtextures) return NULL;
+  return gl3_teximg[id];
 }

@@ -130,7 +130,7 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
   curind += indcnt;
 }
 
-void gl3_AddImage(gl3_img_t *img, float x, float y) {
+void gl3_AddImage(const gl3_img_t *img, float x, float y) {
   gl3_vert_t verts[4] = {};
   float ex, ey; // End point
 
