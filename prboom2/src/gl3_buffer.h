@@ -23,7 +23,7 @@
 
 // Rendering vertex
 typedef struct gl3_vert_s {
-  float x, y, z, w; // Normalized, 0-1
+  float x, y, z; // Normalized, 0-1
   gl3_texcoord_t coord;
 } gl3_vert_t;
 

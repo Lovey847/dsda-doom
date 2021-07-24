@@ -16,6 +16,7 @@
  */
 
 #include "gl3_shader.h"
+#include "gl3_texture.h"
 
 #include "i_system.h"
 
@@ -23,13 +24,14 @@
 #define SHADERSRC(...) "#version 330 core\n\n" #__VA_ARGS__
 
 static const char vertexShader[] = SHADERSRC(
-  layout(location = 0) in vec4 invert;
+  layout(location = 0) in vec3 invert;
   layout(location = 1) in vec2 incoord;
 
   out vec2 coord;
 
   void main() {
-    gl_Position = invert;
+    gl_Position = vec4(invert, 1.0);
+
     coord = incoord;
   }
 
@@ -44,7 +46,8 @@ static const char fragmentShader[] = SHADERSRC(
   out vec4 fragcolor;
 
   void main() {
-    fragcolor = texelFetch(pal, ivec3(0, 0, texelFetch(tex, ivec2(coord), 0).r), 0);
+    uint ind = texelFetch(tex, ivec2(coord), 0).r;
+    fragcolor = texelFetch(pal, ivec3(0, 0, ind), 0);
   }
 
   );
@@ -119,14 +122,18 @@ static GLuint CreateProgram(const char *vertex, const char *fragment) {
 gl3_shader_t gl3_shaders[GL3_SHADER_COUNT];
 
 void gl3_InitShaders(void) {
-  GLint tex, pal;
+  GLint u;
+
   gl3_shaders[GL3_SHADER_PATCH].program = CreateProgram(vertexShader, fragmentShader);
 
+  // Set shader uniforms
   GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
-  tex = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "tex"));
-  pal = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "pal"));
-  GL3(gl3_glUniform1i(pal, 0));
-  GL3(gl3_glUniform1i(tex, 1));
+
+  u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "pal"));
+  GL3(gl3_glUniform1i(u, 0));
+
+  u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "tex"));
+  GL3(gl3_glUniform1i(u, 1));
 
   I_AtExit(gl3_DeleteShaders, true);
 }

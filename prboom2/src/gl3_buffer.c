@@ -41,11 +41,11 @@ static GLuint CreateBuffer(GLenum type, GLsizeiptr size) {
 
 static void SetupVAO(GLuint vao) {
   GL3(gl3_glVertexAttribPointer(0,
-                            4, GL_FLOAT, GL_FALSE,
-                            sizeof(gl3_vert_t), (void*)0));
+                                4, GL_FLOAT, GL_FALSE,
+                                sizeof(gl3_vert_t), NULL));
   GL3(gl3_glVertexAttribPointer(1,
-                            2, GL_UNSIGNED_SHORT, GL_FALSE,
-                            sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, coord)));
+                                2, GL_UNSIGNED_SHORT, GL_FALSE,
+                                sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, coord)));
 
   GL3(gl3_glEnableVertexAttribArray(0));
   GL3(gl3_glEnableVertexAttribArray(1));
@@ -117,8 +117,8 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
 {
   size_t i;
 
-  if (curvert+vertcnt > gl3_vertcount) I_Error("gl3_DrawVerts: Vertex buffer overflow!\n");
-  if (curind+indcnt > gl3_indcount) I_Error("gl3_DrawVerts: Index buffer overflow!\n");
+  if (curvert+vertcnt > gl3_vertcount) I_Error("gl3_AddVerts: Vertex buffer overflow!\n");
+  if (curind+indcnt > gl3_indcount) I_Error("gl3_AddVerts: Index buffer overflow!\n");
 
   memcpy(gl3_verts + curvert, verts, sizeof(gl3_vert_t)*vertcnt);
 
@@ -131,12 +131,7 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
 }
 
 void gl3_AddImage(gl3_img_t *img, float x, float y) {
-  gl3_vert_t verts[4] = {
-    {0.f, 0.f, 0.f, 1.f, {0, 0}},
-    {0.f, 0.f, 0.f, 1.f, {0, 0}},
-    {0.f, 0.f, 0.f, 1.f, {0, 0}},
-    {0.f, 0.f, 0.f, 1.f, {0, 0}},
-  };
+  gl3_vert_t verts[4] = {};
   float ex, ey; // End point
 
   x -= img->leftoffset;

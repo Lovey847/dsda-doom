@@ -22,12 +22,15 @@
 
 // Textures used in renderer
 enum {
-  // 3D RGBA8 texture containing every possible palette based off COLORMAP and PLAYPAL
-  GL3_TEXTURE_PALETTE = GL_TEXTURE0,
+  // 3D RGBA8 palette texture containing every
+  // combination of PLAYPAL and COLORMAP for speedy
+  // palette lookup
+  // X = playpal choice, Y = colormap choice, Z = colormap index
+  GL3_TEXTURE_PALETTE = 0,
 
-  // 2D R8UI texture pages containing every texture
-  GL3_TEXTURE_PAGE0, GL3_TEXTURE_PAGE1, GL3_TEXTURE_PAGE2, GL3_TEXTURE_PAGE3,
-  GL3_TEXTURE_PAGE4, GL3_TEXTURE_PAGE5, GL3_TEXTURE_PAGE6, GL3_TEXTURE_PAGE7,
+  // 2D R8UI texture pages containing every patch, sprite, etc.
+  // Categorized for shaders
+  GL3_TEXTURE_PATCHES, GL3_TEXTURE_SPRITES, GL3_TEXTURE_WALLS, GL3_TEXTURE_FLATS,
 
   GL3_TEXTURE_COUNT
 };
@@ -39,9 +42,6 @@ typedef struct gl3_texcoord_s {
 
 // Image from texture page
 typedef struct gl3_img_s {
-  // Texture page this image resides in
-  size_t page;
-
   // Corners of texture in texture page
   gl3_texcoord_t tl, tr, bl, br;
 
@@ -63,16 +63,7 @@ extern gl3_img_t **gl3_lumpimg;
 // Texture ID to image LUT
 extern gl3_img_t **gl3_teximg;
 
-// Palette texture
-// 3D texture filled with every combination of
-// PLAYPAL and COLORMAP for speedy palette lookup
-// X = playpal choice, Y = colormap choice, Z = colormap index
-extern GLuint gl3_paltex;
-
-// Texture pages
-#define GL3_MAXPAGES 8
-extern GLuint gl3_texpages[GL3_MAXPAGES];
-extern size_t gl3_pagecount;
+extern GLuint gl3_textures[GL3_TEXTURE_COUNT];
 
 // Initialize texture objects
 void gl3_InitTextures(void);
