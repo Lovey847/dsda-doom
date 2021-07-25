@@ -27,69 +27,68 @@
 
 #include "doomtype.h"
 
-// Extension function definition
-// Uses versatile DEFEXTFUNC(_type, _name, ...) macro to easily define a list of all
+// Loaded functions
+// Uses versatile DEFFUNC(_type, _name, ...) macro to easily define a list of all
 // extension functions
 //
-// Make sure to #undef DEFEXTFUNC after using this macro
-#define GL3_EXTFUNCS                                                    \
+// Make sure to #undef DEFFUNC after using this macro
+#define GL3_FUNCLIST                                                    \
   /* Shaders */                                                         \
-  DEFEXTFUNC(GLuint, glCreateShader, GLenum)                            \
-  DEFEXTFUNC(void, glShaderSource,                                      \
-             GLuint, GLsizei, const GLchar**, const GLint*)             \
-  DEFEXTFUNC(void, glCompileShader, GLuint)                             \
-  DEFEXTFUNC(void, glGetShaderiv, GLuint, GLenum, GLint*)               \
-  DEFEXTFUNC(void, glGetShaderInfoLog,                                  \
-             GLuint, GLsizei, GLsizei*, GLchar*)                        \
-  DEFEXTFUNC(void, glDeleteShader, GLuint)                              \
-  DEFEXTFUNC(GLuint, glCreateProgram, void)                             \
-  DEFEXTFUNC(void, glAttachShader, GLuint, GLuint)                      \
-  DEFEXTFUNC(void, glLinkProgram, GLuint)                               \
-  DEFEXTFUNC(void, glGetProgramiv, GLuint, GLenum, GLint*)              \
-  DEFEXTFUNC(void, glGetProgramInfoLog,                                 \
-             GLuint, GLsizei, GLsizei*, GLchar*)                        \
-  DEFEXTFUNC(void, glDetachShader, GLuint, GLuint)                      \
-  DEFEXTFUNC(void, glDeleteProgram, GLuint)                             \
-  DEFEXTFUNC(void, glUseProgram, GLuint)                                \
+  DEFFUNC(GLuint, glCreateShader, GLenum)                               \
+  DEFFUNC(void, glShaderSource,                                         \
+          GLuint, GLsizei, const GLchar**, const GLint*)                \
+  DEFFUNC(void, glCompileShader, GLuint)                                \
+  DEFFUNC(void, glGetShaderiv, GLuint, GLenum, GLint*)                  \
+  DEFFUNC(void, glGetShaderInfoLog,                                     \
+          GLuint, GLsizei, GLsizei*, GLchar*)                           \
+  DEFFUNC(void, glDeleteShader, GLuint)                                 \
+  DEFFUNC(GLuint, glCreateProgram, void)                                \
+  DEFFUNC(void, glAttachShader, GLuint, GLuint)                         \
+  DEFFUNC(void, glLinkProgram, GLuint)                                  \
+  DEFFUNC(void, glGetProgramiv, GLuint, GLenum, GLint*)                 \
+  DEFFUNC(void, glGetProgramInfoLog,                                    \
+          GLuint, GLsizei, GLsizei*, GLchar*)                           \
+  DEFFUNC(void, glDetachShader, GLuint, GLuint)                         \
+  DEFFUNC(void, glDeleteProgram, GLuint)                                \
+  DEFFUNC(void, glUseProgram, GLuint)                                   \
                                                                         \
   /* Shader uniforms */                                                 \
-  DEFEXTFUNC(GLint, glGetUniformLocation, GLuint, const GLchar*)        \
-  DEFEXTFUNC(void, glUniform1i, GLint, GLint)                           \
-  DEFEXTFUNC(GLuint, glGetUniformBlockIndex, GLuint, const GLchar*)     \
-  DEFEXTFUNC(void, glUniformBlockBinding, GLuint, GLuint, GLuint)       \
+  DEFFUNC(GLint, glGetUniformLocation, GLuint, const GLchar*)           \
+  DEFFUNC(void, glUniform1i, GLint, GLint)                              \
+  DEFFUNC(GLuint, glGetUniformBlockIndex, GLuint, const GLchar*)        \
+  DEFFUNC(void, glUniformBlockBinding, GLuint, GLuint, GLuint)          \
                                                                         \
   /* Vertex buffers */                                                  \
-  DEFEXTFUNC(void, glGenVertexArrays, GLsizei, GLuint*)                 \
-  DEFEXTFUNC(void, glBindVertexArray, GLuint)                           \
-  DEFEXTFUNC(void, glGenBuffers, GLsizei, GLuint*)                      \
-  DEFEXTFUNC(void, glBindBuffer, GLenum, GLuint)                        \
-  DEFEXTFUNC(void, glBufferData,                                        \
-             GLenum, GLsizeiptr, const void*, GLenum)                   \
-  DEFEXTFUNC(void, glVertexAttribPointer,                               \
-             GLuint, GLint, GLenum, GLboolean, GLsizei, const void*)    \
-  DEFEXTFUNC(void, glEnableVertexAttribArray, GLuint)                   \
-  DEFEXTFUNC(void, glDeleteBuffers, GLsizei, const GLuint*)             \
-  DEFEXTFUNC(void, glDeleteVertexArrays, GLsizei, const GLuint*)        \
-  DEFEXTFUNC(void, glBufferSubData,                                     \
-             GLenum, GLintptr, GLsizeiptr, const void*)                 \
-  DEFEXTFUNC(void, glBindBufferRange,                                   \
-             GLenum, GLuint, GLuint, GLintptr, GLsizeiptr)
+  DEFFUNC(void, glGenVertexArrays, GLsizei, GLuint*)                    \
+  DEFFUNC(void, glBindVertexArray, GLuint)                              \
+  DEFFUNC(void, glGenBuffers, GLsizei, GLuint*)                         \
+  DEFFUNC(void, glBindBuffer, GLenum, GLuint)                           \
+  DEFFUNC(void, glBufferData,                                           \
+          GLenum, GLsizeiptr, const void*, GLenum)                      \
+  DEFFUNC(void, glVertexAttribPointer,                                  \
+          GLuint, GLint, GLenum, GLboolean, GLsizei, const void*)       \
+  DEFFUNC(void, glEnableVertexAttribArray, GLuint)                      \
+  DEFFUNC(void, glDeleteBuffers, GLsizei, const GLuint*)                \
+  DEFFUNC(void, glDeleteVertexArrays, GLsizei, const GLuint*)           \
+  DEFFUNC(void, glBufferSubData,                                        \
+          GLenum, GLintptr, GLsizeiptr, const void*)                    \
+  DEFFUNC(void, glBindBufferRange,                                      \
+          GLenum, GLuint, GLuint, GLintptr, GLsizeiptr)
 
-
-// Extension function typedefs
+// Loaded function typedefs
 // I don't use the usual types since I need names
 // that can be constructed from _name, don't wanna add
-// a proc parameter to DEFEXTFUNC
-#define DEFEXTFUNC(_type, _name, ...)                         \
+// a proc parameter to DEFFUNC
+#define DEFFUNC(_type, _name, ...)                         \
   typedef _type (APIENTRYP gl3_ ## _name ## _t)(__VA_ARGS__);
-GL3_EXTFUNCS;
-#undef DEFEXTFUNC
+GL3_FUNCLIST;
+#undef DEFFUNC
 
-// Extension function pointers
-#define DEFEXTFUNC(_type, _name, ...)           \
+// Loaded function pointers
+#define DEFFUNC(_type, _name, ...)           \
   extern gl3_ ## _name ## _t gl3_ ## _name;
-GL3_EXTFUNCS;
-#undef DEFEXTFUNC
+GL3_FUNCLIST;
+#undef DEFFUNC
 
 // Load functions
 dboolean gl3_InitOpenGL(void);
