@@ -27,7 +27,7 @@ GL3_FUNCLIST;
 #undef DEFFUNC
 
 // Extension function pointer definitions
-#define DEFFUNC(_type, _name, ...)                            \
+#define DEFFUNC(_type, _name, ...)                  \
   gl3_ext_ ## _name ## _t gl3_ext_ ## _name = NULL;
 GL3_EXTFUNCLIST;
 #undef DEFFUNC
@@ -50,16 +50,16 @@ static dboolean IsExtensionSupported(const char *name) {
 }
 
 // Macro for loading functions
-#define LOADFUNC(_func, _funcpre, _name)                    \
+#define LOADFUNC(_func, _funcpre, _name)                          \
   if (!_funcpre ## _ ## _name) {                                  \
     _funcpre ## _ ## _name = SDL_GL_GetProcAddress(#_name);       \
     if (!_funcpre ## _ ## _name) {                                \
-      lprintf(LO_INFO, #_func ": Failed to load %s!\n", #_name);  \
+      lprintf(LO_WARN, #_func ": Failed to load %s!\n", #_name);  \
                                                                   \
       return false;                                               \
     }                                                             \
                                                                   \
-    lprintf(LO_INFO, #_func ": Loaded %s\n", #_name);             \
+    lprintf(LO_DEBUG, #_func ": Loaded %s\n", #_name);            \
   }
 
 static dboolean InitExtensions(void) {
