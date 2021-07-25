@@ -30,12 +30,11 @@ enum {
 // OpenGL shader
 typedef struct gl3_shader_s {
   GLuint program; // Shader program
-  GLuint block; // Uniform block index
 } gl3_shader_t;
 
 // Uniform block used in shaders
 typedef struct gl3_block_s {
-  float blend[4]; // Color to blend image with
+  unsigned int pal;
 } gl3_block_t;
 
 // Shaders

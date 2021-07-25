@@ -171,12 +171,6 @@ void gl3_Init(int width, int height) {
   // Enable alpha blending
   GL3(glEnable(GL_BLEND));
   GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-
-  // Setup uniform block data
-  gl3_shaderdata.blend[0] = 1.f;
-  gl3_shaderdata.blend[1] = 1.f;
-  gl3_shaderdata.blend[2] = 1.f;
-  gl3_shaderdata.blend[3] = 1.f;
 }
 
 void gl3_Start(void) {
@@ -186,6 +180,10 @@ void gl3_Start(void) {
 void gl3_Finish(void) {
   gl3_DrawBuffers();
   SDL_GL_SwapWindow(sdl_window);
+}
+
+void gl3_SetPalette(int palette) {
+  gl3_shaderdata.pal = palette;
 }
 
 void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color) {

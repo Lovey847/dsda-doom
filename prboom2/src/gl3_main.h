@@ -67,6 +67,9 @@ void gl3_Start(void);
 // Finish drawing frame
 void gl3_Finish(void);
 
+// Update palette
+void gl3_SetPalette(int palette);
+
 // for v_video.c
 void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color);
 void gl3_DrawBackground(const char *flatname, int n);

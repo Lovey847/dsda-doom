@@ -809,6 +809,10 @@ void V_SetPalette(int pal)
 #ifdef GL_DOOM
     gld_SetPalette(pal);
 #endif
+  } else if (V_GL3Active()) {
+#ifdef GL_DOOM
+    gl3_SetPalette(pal);
+#endif
   } else {
     I_SetPalette(pal);
     if (V_GetMode() == VID_MODE32) {
