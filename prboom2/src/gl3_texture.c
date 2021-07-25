@@ -671,13 +671,6 @@ static void gl3_InitPages(void) {
     AddPatch(rect++, lump);
   }
 
-  // Pack rectangles
-  PackRects(rectbuf, rect-rectbuf);
-
-  // Render rectangles into patch texture page
-  RenderRects(rectbuf, rect-rectbuf, GL3_TEXTURE_PATCHES);
-  rect = rectbuf;
-
   // Go through sprites, adding each one
   for (lump = sstart; lump < send; ++lump) {
     if (W_LumpLength(lump) == 0) {
@@ -693,8 +686,8 @@ static void gl3_InitPages(void) {
   // Pack rectangles
   PackRects(rectbuf, rect-rectbuf);
 
-  // Render rectangles into sprite texture page
-  RenderRects(rectbuf, rect-rectbuf, GL3_TEXTURE_SPRITES);
+  // Render rectangles into patch texture page
+  RenderRects(rectbuf, rect-rectbuf, GL3_TEXTURE_PATCHES);
   rect = rectbuf;
 
   // Go through wall textures, adding each one

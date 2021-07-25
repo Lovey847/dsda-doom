@@ -142,7 +142,7 @@ void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
 
   // Log invalid patches
   if (!img) ReportInvalidPatch(lump);
-  else gl3_AddImage(img, x, y);
+  else gl3_AddImage(img, x, y, flags);
 }
 
 void gl3_PlotPixel(int scrn, int x, int y, byte color) {

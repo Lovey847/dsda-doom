@@ -18,6 +18,7 @@
 #include "gl3_buffer.h"
 
 #include "i_system.h"
+#include "v_video.h"
 
 ///////////////////////////
 // OpenGL buffer handling
@@ -130,20 +131,46 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
   curind += indcnt;
 }
 
-void gl3_AddImage(const gl3_img_t *img, float x, float y) {
+void gl3_AddImage(const gl3_img_t *img, float x, float y, enum patch_translation_e flags) {
+  static const float two_over_320 = 2.f/320.f;
+  static const float negative_two_over_200 = -2.f/200.f;
+
+  const stretch_param_t * const params = &stretch_params[flags&VPT_ALIGN_MASK];
+
+  const float two_over_width = 2.f/(float)SCREENWIDTH;
+  const float negative_two_over_height = -2.f/(float)SCREENHEIGHT;
+
   gl3_vert_t verts[4] = {};
   float ex, ey; // End point
 
-  x -= img->leftoffset;
-  y -= img->topoffset;
+  if (!(flags & VPT_NOOFFSET)) {
+    x -= img->leftoffset;
+    y -= img->topoffset;
+  }
 
   // Convert to normalized coordinates
-  // 0.00625 = 2/320
-  // 0.01 = 2/200
-  x = x*0.00625f-1.f;
-  y = y*-0.01f+1.f; // Flip Y coordinate
-  ex = x + (float)img->width*0.00625f;
-  ey = y - (float)img->height*0.01f;
+  if (flags&VPT_STRETCH_MASK) {
+    const float two_over_vidwidth = 2.f/(float)params->video->width;
+    const float negative_two_over_vidheight = -2.f/(float)params->video->height;
+    const float vidwidth_over_width = (float)params->video->width/(float)SCREENWIDTH;
+    const float vidheight_over_height = (float)params->video->height/(float)SCREENHEIGHT;
+
+    x = x*two_over_320*vidwidth_over_width-1.f;
+    y = y*negative_two_over_200*vidheight_over_height+1.f; // Flip Y coordinate
+    ex = x + (float)img->width*two_over_320*vidwidth_over_width;
+    ey = y + (float)img->height*negative_two_over_200*vidheight_over_height;
+
+    // Add screen properties
+    x += (float)params->deltax1*two_over_width; // As far as I know, deltax2 == deltax1
+    y += (float)params->deltay1*negative_two_over_height;
+    ex += (float)params->deltax1*two_over_width;
+    ey += (float)params->deltay1*negative_two_over_height;
+  } else {
+    x = x*two_over_width-1.f;
+    y = y*negative_two_over_height+1.f;
+    ex = x + (float)img->width*two_over_width;
+    ey = y + (float)img->height*negative_two_over_height;
+  }
 
   // Fill out verts
   verts[0].x = x;

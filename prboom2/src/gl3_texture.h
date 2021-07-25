@@ -30,8 +30,7 @@ enum {
 
   // 2D R8UI texture pages containing every patch, sprite, etc.
   // Categorized for shaders
-  GL3_TEXTURE_PATCHES, GL3_TEXTURE_SPRITES,
-  GL3_TEXTURE_WALLS, GL3_TEXTURE_FLATS,
+  GL3_TEXTURE_PATCHES, GL3_TEXTURE_WALLS, GL3_TEXTURE_FLATS,
 
   GL3_TEXTURE_COUNT
 };
