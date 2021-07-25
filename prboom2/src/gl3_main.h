@@ -43,7 +43,7 @@ extern int gl3_errno;
 #define GL3(...)                                          \
   __VA_ARGS__;                                            \
   if ((gl3_errno = glGetError()) != GL_NO_ERROR)          \
-    lprintf(LO_INFO, "Line %d of %s: %s\n",               \
+    lprintf(LO_WARN, "Line %d of %s: %s\n",               \
             __LINE__, __FILE__, gl3_strerror(gl3_errno))  \
 
 #else // NDEBUG

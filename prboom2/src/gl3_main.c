@@ -36,7 +36,7 @@ static const char *sourceStr(GLenum source) {
   case GL_DEBUG_SOURCE_OTHER_ARB: return "GL_DEBUG_SOURCE_OTHER_ARB";
   }
 
-  return "Unknown source";
+  return "NONE";
 }
 static const char *typeStr(GLenum type) {
   switch (type) {
@@ -48,7 +48,7 @@ static const char *typeStr(GLenum type) {
   case GL_DEBUG_TYPE_OTHER_ARB: return "GL_DEBUG_TYPE_OTHER_ARB";
   }
 
-  return "Unknown type";
+  return "NONE";
 }
 static const char *severityStr(GLenum severity) {
   switch (severity) {
@@ -57,15 +57,24 @@ static const char *severityStr(GLenum severity) {
   case GL_DEBUG_SEVERITY_LOW_ARB: return "GL_DEBUG_SEVERITY_LOW_ARB";
   }
 
-  return "Unknown severity";
+  return "Notification";
 }
 
 static void APIENTRY ErrorCallback(GLenum source, GLenum type, GLuint id,
                                    GLenum severity, GLsizei length, const GLchar *msg,
                                    const GLvoid *userParam)
 {
+  OutputLevels o;
+  switch (severity) {
+  case GL_DEBUG_SEVERITY_LOW_ARB:
+  case GL_DEBUG_SEVERITY_MEDIUM_ARB:
+  case GL_DEBUG_SEVERITY_HIGH_ARB: o = LO_WARN; break;
+
+  default: o = LO_DEBUG; break;
+  }
+
   // NOTE: lprintf uses static data, is this thread save?
-  lprintf(LO_WARN,
+  lprintf(o,
           "OpenGL debug message:\n"
           "  Source: %s\n"
           "  Type: %s\n"
@@ -115,7 +124,7 @@ void gl3_Init(int width, int height) {
 
     // Enable low severity messages
     GL3(gl3_ext_glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE,
-                                         GL_DEBUG_SEVERITY_LOW_ARB, 0, NULL, true));
+                                         GL_DONT_CARE, 0, NULL, true));
   }
 #endif
 

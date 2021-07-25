@@ -73,6 +73,8 @@ static GLuint CreateShader(const char *src, GLenum type) {
   if (!ret) I_Error("CreateShader: Cannot create %s!\n", ShaderTypeStr(type));
 
   GL3(gl3_glShaderSource(ret, 1, &src, NULL));
+
+  lprintf(LO_DEBUG, "CreateShader: Compiling %s\n", ShaderTypeStr(type));
   GL3(gl3_glCompileShader(ret));
   GL3(gl3_glGetShaderiv(ret, GL_COMPILE_STATUS, &status));
 
@@ -99,6 +101,7 @@ static GLuint CreateProgram(const char *vertex, const char *fragment) {
   GL3(gl3_glAttachShader(ret, v));
   GL3(gl3_glAttachShader(ret, f));
 
+  lprintf(LO_DEBUG, "CreateProgram: Linking...\n");
   GL3(gl3_glLinkProgram(ret));
 
   GL3(gl3_glDetachShader(ret, v));

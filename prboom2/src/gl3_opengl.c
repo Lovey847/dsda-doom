@@ -35,18 +35,36 @@ GL3_EXTFUNCLIST;
 // Whether extensions are supported or not
 dboolean gl3_haveExt = false;
 
-static dboolean IsExtensionSupported(const char *name) {
+static dboolean ExtensionSupported(const char *name, GLint numext) {
   GLuint ind;
   const char *extstr;
 
-  GL3(glGetIntegerv(GL_NUM_EXTENSIONS, &ind));
-
-  for (; ind--;) {
+  for (ind = numext; ind--;) {
     extstr = GL3(gl3_glGetStringi(GL_EXTENSIONS, ind));
     if (!strcmp(name, extstr)) return true;
   }
 
   return false;
+}
+
+static dboolean ExtensionsSupported(void) {
+  static const char * const extensions[] = {GL3_EXTLIST};
+
+  GLint numext;
+  size_t i;
+
+  GL3(glGetIntegerv(GL_NUM_EXTENSIONS, &numext));
+
+  for (i = 0; i < sizeof(extensions)/sizeof(extensions[0]); ++i) {
+    if (!ExtensionSupported(extensions[i], numext)) {
+      lprintf(LO_WARN, "ExtensionsSupported: %s is not supported!\n", extensions[i]);
+      return false;
+    }
+
+    lprintf(LO_DEBUG, "ExtensionsSupported: %s is supported\n", extensions[i]);
+  }
+
+  return true;
 }
 
 // Macro for loading functions
@@ -80,7 +98,7 @@ dboolean gl3_InitOpenGL(void) {
 #undef DEFFUNC
 
   // With glGetStringi, check if all extensions are supported
-  if (IsExtensionSupported("GL_ARB_debug_output")) {
+  if (ExtensionsSupported()) {
     lprintf(LO_INFO, "gl3_InitOpenGL: Loading extension functions\n");
     gl3_haveExt = InitExtensions();
   }

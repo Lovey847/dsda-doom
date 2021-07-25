@@ -78,9 +78,13 @@
   /* Misc. functions */                                                 \
   DEFFUNC(const GLubyte*, glGetStringi, GLenum, GLuint)
 
+// Comma-separated extension list
+#define GL3_EXTLIST                             \
+  "GL_ARB_debug_output",
+
 // Extension function list
 #define GL3_EXTFUNCLIST                                               \
-  /* ARB_debug_output */                                              \
+  /* GL_ARB_debug_output */                                           \
   DEFFUNC(void, glDebugMessageControlARB,                             \
           GLenum, GLenum, GLenum, GLsizei, const GLuint*, GLboolean)  \
   DEFFUNC(void, glDebugMessageInsertARB,                              \
