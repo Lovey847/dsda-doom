@@ -73,24 +73,56 @@
   DEFFUNC(void, glBufferSubData,                                        \
           GLenum, GLintptr, GLsizeiptr, const void*)                    \
   DEFFUNC(void, glBindBufferRange,                                      \
-          GLenum, GLuint, GLuint, GLintptr, GLsizeiptr)
+          GLenum, GLuint, GLuint, GLintptr, GLsizeiptr)                 \
+                                                                        \
+  /* Misc. functions */                                                 \
+  DEFFUNC(const GLubyte*, glGetStringi, GLenum, GLuint)
+
+// Extension function list
+#define GL3_EXTFUNCLIST                                               \
+  /* ARB_debug_output */                                              \
+  DEFFUNC(void, glDebugMessageControlARB,                             \
+          GLenum, GLenum, GLenum, GLsizei, const GLuint*, GLboolean)  \
+  DEFFUNC(void, glDebugMessageInsertARB,                              \
+          GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar*)     \
+  DEFFUNC(void, glDebugMessageCallbackARB,                            \
+          GLDEBUGPROCARB, const GLvoid*)                              \
+  DEFFUNC(GLuint, glGetDebugMessageLogARB,                            \
+          GLuint, GLsizei, GLenum*, GLenum*, GLuint*, GLenum*,        \
+          GLsizei*, GLchar*)                                          \
+  DEFFUNC(void, glGetPointerv, GLenum, GLvoid**)
 
 // Loaded function typedefs
 // I don't use the usual types since I need names
 // that can be constructed from _name, don't wanna add
 // a proc parameter to DEFFUNC
-#define DEFFUNC(_type, _name, ...)                         \
+#define DEFFUNC(_type, _name, ...)                            \
   typedef _type (APIENTRYP gl3_ ## _name ## _t)(__VA_ARGS__);
 GL3_FUNCLIST;
 #undef DEFFUNC
 
 // Loaded function pointers
-#define DEFFUNC(_type, _name, ...)           \
+#define DEFFUNC(_type, _name, ...)              \
   extern gl3_ ## _name ## _t gl3_ ## _name;
 GL3_FUNCLIST;
 #undef DEFFUNC
 
-// Load functions
+// Extension function typedefs
+#define DEFFUNC(_type, _name, ...)                                      \
+  typedef _type (APIENTRYP gl3_ext_ ## _name ## _t)(__VA_ARGS__);
+GL3_EXTFUNCLIST;
+#undef DEFFUNC
+
+// Extension function pointers
+#define DEFFUNC(_type, _name, ...)                            \
+  extern gl3_ext_ ## _name ## _t gl3_ext_ ## _name;
+GL3_EXTFUNCLIST;
+#undef DEFFUNC
+
+// Whether extensions are supported or not
+extern dboolean gl3_haveExt;
+
+// Load functions and initialize gl3_haveExt
 dboolean gl3_InitOpenGL(void);
 
 #endif //_GL3_OPENGL_H
