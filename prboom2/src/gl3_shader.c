@@ -40,6 +40,10 @@ static const char vertexShader[] = SHADERSRC(
 static const char fragmentShader[] = SHADERSRC(
   in vec2 coord;
 
+  layout(std140) uniform shaderdata_t {
+    vec4 blend;
+  } shaderdata;
+
   uniform usampler2D tex;
   uniform sampler3D pal;
 
@@ -47,7 +51,7 @@ static const char fragmentShader[] = SHADERSRC(
 
   void main() {
     uint ind = texelFetch(tex, ivec2(coord), 0).r;
-    fragcolor = texelFetch(pal, ivec3(0, 0, ind), 0);
+    fragcolor = texelFetch(pal, ivec3(0, 0, ind), 0) * shaderdata.blend;
   }
 
   );

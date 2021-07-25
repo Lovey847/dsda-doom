@@ -55,6 +55,8 @@
   /* Shader uniforms */                                                 \
   DEFEXTFUNC(GLint, glGetUniformLocation, GLuint, const GLchar*)        \
   DEFEXTFUNC(void, glUniform1i, GLint, GLint)                           \
+  DEFEXTFUNC(GLuint, glGetUniformBlockIndex, GLuint, const GLchar*)     \
+  DEFEXTFUNC(void, glUniformBlockBinding, GLuint, GLuint, GLuint)       \
                                                                         \
   /* Vertex buffers */                                                  \
   DEFEXTFUNC(void, glGenVertexArrays, GLsizei, GLuint*)                 \
@@ -69,7 +71,10 @@
   DEFEXTFUNC(void, glDeleteBuffers, GLsizei, const GLuint*)             \
   DEFEXTFUNC(void, glDeleteVertexArrays, GLsizei, const GLuint*)        \
   DEFEXTFUNC(void, glBufferSubData,                                     \
-             GLenum, GLintptr, GLsizeiptr, const void*)
+             GLenum, GLintptr, GLsizeiptr, const void*)                 \
+  DEFEXTFUNC(void, glBindBufferRange,                                   \
+             GLenum, GLuint, GLuint, GLintptr, GLsizeiptr)
+
 
 // Extension function typedefs
 // I don't use the usual types since I need names

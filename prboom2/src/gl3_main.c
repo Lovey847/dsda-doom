@@ -98,6 +98,12 @@ void gl3_Init(int width, int height) {
   // Enable alpha blending
   GL3(glEnable(GL_BLEND));
   GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
+  // Setup uniform block data
+  gl3_shaderdata.blend[0] = 1.f;
+  gl3_shaderdata.blend[1] = 0.f;
+  gl3_shaderdata.blend[2] = 0.f;
+  gl3_shaderdata.blend[3] = 1.f;
 }
 
 void gl3_Start(void) {

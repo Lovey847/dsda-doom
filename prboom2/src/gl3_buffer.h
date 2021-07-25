@@ -20,6 +20,7 @@
 
 #include "gl3_main.h"
 #include "gl3_texture.h"
+#include "gl3_shader.h"
 
 // Rendering vertex
 typedef struct gl3_vert_s {
@@ -27,12 +28,16 @@ typedef struct gl3_vert_s {
   gl3_texcoord_t coord;
 } gl3_vert_t;
 
-// Raw vertex buffer
+// Raw vertex & index buffer
 extern gl3_vert_t *gl3_verts;
 extern unsigned short *gl3_inds;
 
+// Maximum number of vertices and indices
 extern size_t gl3_vertcount;
 extern size_t gl3_indcount;
+
+// Uniform buffer
+extern gl3_block_t gl3_shaderdata;
 
 // Initialize buffers, specifying buffer sizes
 void gl3_InitBuffers(size_t verts, size_t inds);

@@ -56,17 +56,21 @@ static void SetupVAO(GLuint vao) {
 // Buffer handling
 
 // Local buffer objects
-static GLuint vao, vbo, ebo;
+static GLuint vao, vbo, ebo, ubo;
 
 // Local buffer pointers
 static size_t curvert = 0, curind = 0;
 
-// Buffer pointers
+// Raw buffers
 gl3_vert_t *gl3_verts;
 unsigned short *gl3_inds;
 
+// Maximum buffer sizes
 size_t gl3_vertcount;
 size_t gl3_indcount;
+
+// Uniform buffer data
+gl3_block_t gl3_shaderdata;
 
 void gl3_InitBuffers(size_t verts, size_t inds) {
   vao = CreateVAO();
@@ -75,6 +79,9 @@ void gl3_InitBuffers(size_t verts, size_t inds) {
   ebo = CreateBuffer(GL_ELEMENT_ARRAY_BUFFER, 2*inds);
 
   SetupVAO(vao);
+
+  ubo = CreateBuffer(GL_UNIFORM_BUFFER, sizeof(gl3_block_t));
+  GL3(gl3_glBindBufferRange(GL_UNIFORM_BUFFER, 0, ubo, 0, sizeof(gl3_block_t)));
 
   gl3_vertcount = verts;
   gl3_indcount = inds;
@@ -88,8 +95,10 @@ void gl3_InitBuffers(size_t verts, size_t inds) {
 void gl3_DeleteBuffers(void) {
   GL3(gl3_glBindBuffer(GL_ARRAY_BUFFER, 0));
   GL3(gl3_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+  GL3(gl3_glBindBuffer(GL_UNIFORM_BUFFER, 0));
   GL3(gl3_glBindVertexArray(0));
 
+  GL3(gl3_glDeleteBuffers(1, &ubo));
   GL3(gl3_glDeleteBuffers(1, &ebo));
   GL3(gl3_glDeleteBuffers(1, &vbo));
   GL3(gl3_glDeleteVertexArrays(1, &vao));
@@ -107,6 +116,8 @@ void gl3_DrawBuffers(void) {
   GL3(gl3_glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(gl3_vert_t)*curvert, gl3_verts));
   GL3(gl3_glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount, NULL, GL_STREAM_DRAW));
   GL3(gl3_glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2*curind, gl3_inds));
+  GL3(gl3_glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), NULL, GL_STREAM_DRAW));
+  GL3(gl3_glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(gl3_block_t), &gl3_shaderdata));
 
   GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
 
