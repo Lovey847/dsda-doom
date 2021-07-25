@@ -101,8 +101,8 @@ void gl3_Init(int width, int height) {
 
   // Setup uniform block data
   gl3_shaderdata.blend[0] = 1.f;
-  gl3_shaderdata.blend[1] = 0.f;
-  gl3_shaderdata.blend[2] = 0.f;
+  gl3_shaderdata.blend[1] = 1.f;
+  gl3_shaderdata.blend[2] = 1.f;
   gl3_shaderdata.blend[3] = 1.f;
 }
 
