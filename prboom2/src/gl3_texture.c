@@ -466,8 +466,9 @@ gl3_img_t **gl3_teximg;
 GLuint gl3_textures[GL3_TEXTURE_COUNT];
 
 static void gl3_InitPal(void) {
-  int x, y, z;
-  int width, height, depth;
+  size_t maps, pals;
+  size_t ind, map, pal;
+  size_t width, height, depth;
 
   // playpal: PLAYPAL lump
   // colmap: COLORMAP lump
@@ -483,15 +484,21 @@ static void gl3_InitPal(void) {
   // Set active texture
   GL3(glActiveTexture(GL_TEXTURE0+GL3_TEXTURE_PALETTE));
 
-  // Number of playpals
-  width = W_LumpLength(W_GetNumForName(playpaldata->lump_name))/768;
-
-  // Number of colormaps
+  // Number of maps in colormap
   colmapnum = W_GetNumForName("COLORMAP");
-  height = W_LumpLength(colmapnum)/256;
+  maps = W_LumpLength(colmapnum)/256;
 
-  // Depth (index into colormap, always 256)
-  depth = 256;
+  // Number of palettes in playpal
+  pals = W_LumpLength(W_GetNumForName(playpaldata->lump_name))/768;
+
+  // Width (index into colormap, always 256)
+  width = 256;
+
+  // Height (number of maps)
+  height = maps;
+
+  // Depth (number of palettes)
+  depth = pals;
 
   GL3(glBindTexture(GL_TEXTURE_3D, gl3_textures[GL3_TEXTURE_PALETTE]));
 
@@ -515,24 +522,26 @@ static void gl3_InitPal(void) {
   // Fill palette texture, one palette at a time
   playpal = V_GetPlaypal();
   colmap = W_CacheLumpNum(colmapnum);
-  outpal = (byte*)Z_Malloc(depth*4, PU_STATIC, NULL);
+  outpal = (byte*)Z_Malloc((256*4)*maps, PU_STATIC, NULL);
 
-  for (x = 0; x < width; ++x) {
-    for (y = 0; y < height; ++y) {
-      for (z = 0; z < depth; ++z) {
-        const size_t ind = 768*x + 3*colmap[256*y + z];
+  for (pal = 0; pal < pals; ++pal) {
+    for (map = 0; map < maps; ++map) {
+      const size_t mapind = (256*4)*map;
 
-        outpal[z*4] = playpal[ind];
-        outpal[z*4 + 1] = playpal[ind+1];
-        outpal[z*4 + 2] = playpal[ind+2];
-        outpal[z*4 + 3] = 255 * (z != playpaldata->transparent);
+      for (ind = 0; ind < 256; ++ind) {
+        const size_t palind = 768*pal + 3*colmap[256*map + ind];
+
+        outpal[mapind + ind*4] = playpal[palind];
+        outpal[mapind + ind*4 + 1] = playpal[palind+1];
+        outpal[mapind + ind*4 + 2] = playpal[palind+2];
+        outpal[mapind + ind*4 + 3] = 255 * (ind != playpaldata->transparent);
       }
-
-      GL3(glTexSubImage3D(GL_TEXTURE_3D, 0,
-                          x, y, 0,
-                          1, 1, depth,
-                          GL_RGBA, GL_UNSIGNED_BYTE, outpal));
     }
+
+    GL3(glTexSubImage3D(GL_TEXTURE_3D, 0,
+                        0, 0, pal,
+                        256, maps, 1,
+                        GL_RGBA, GL_UNSIGNED_BYTE, outpal));
   }
 
   Z_Free(outpal);

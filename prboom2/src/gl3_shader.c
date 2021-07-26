@@ -51,7 +51,7 @@ static const char fragmentShader[] = SHADERSRC(
 
   void main() {
     uint ind = texelFetch(tex, ivec2(coord), 0).r;
-    fragcolor = texelFetch(pal, ivec3(shaderdata.pal, 0, ind), 0);
+    fragcolor = texelFetch(pal, ivec3(ind, 0, shaderdata.pal), 0);
   }
 
   );
