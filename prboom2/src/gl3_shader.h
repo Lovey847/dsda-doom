@@ -34,7 +34,9 @@ typedef struct gl3_shader_s {
 
 // Uniform block used in shaders
 typedef struct gl3_block_s {
-  unsigned int palTimesTransTables; // pal * (CR_LIMIT+1)
+  GLuint palTimesTransTables; // pal * (CR_LIMIT+1)
+  GLfloat width; // Wide screen width
+  GLfloat height; // Wide screen height
 } gl3_block_t;
 
 // Shaders

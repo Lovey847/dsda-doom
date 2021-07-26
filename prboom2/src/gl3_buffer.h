@@ -22,11 +22,18 @@
 #include "gl3_texture.h"
 #include "gl3_shader.h"
 
+// Rendering vertex flags
+enum {
+  GL3_VERTFLAG_TRANS = 0,
+
+  GL3_VERTFLAG_TRANSMASK = 0xf << GL3_VERTFLAG_TRANS,
+};
+
 // Rendering vertex
 typedef struct gl3_vert_s {
   float x, y, z; // Normalized, 0-1
   gl3_texcoord_t coord;
-  byte trans; // Color translation table (0 for none)
+  unsigned int flags;
 } gl3_vert_t;
 
 // Raw vertex & index buffer

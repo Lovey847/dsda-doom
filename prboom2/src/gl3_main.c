@@ -171,6 +171,10 @@ void gl3_Init(int width, int height) {
   // Enable alpha blending
   GL3(glEnable(GL_BLEND));
   GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
+  // Set screen size
+  gl3_shaderdata.width = (float)video_stretch.width;
+  gl3_shaderdata.height = (float)video_stretch.height;
 }
 
 void gl3_Start(void) {

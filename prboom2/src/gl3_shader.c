@@ -26,36 +26,43 @@
 static const char vertexShader[] = SHADERSRC(
   layout(location = 0) in vec3 invert;
   layout(location = 1) in vec2 incoord;
-  layout(location = 2) in uint intrans;
+  layout(location = 2) in uint inflags;
+
+  layout(std140) uniform shaderdata_t {
+    // Palette, premultiplied by nuber of translation tables
+    uint palTimesTransTables;
+
+    float width; // Wide screen width
+    float height; // Wide screen height
+  } shaderdata;
 
   out vec2 coord;
-  flat out uint trans;
+  flat out uint flags;
+  flat out uint palTimesTransTables;
 
   void main() {
     gl_Position = vec4(invert, 1.0);
 
     coord = incoord;
-    trans = intrans;
+    flags = inflags;
+    palTimesTransTables = shaderdata.palTimesTransTables;
   }
 
   );
 
 static const char fragmentShader[] = SHADERSRC(
   in vec2 coord;
-
-  layout(std140) uniform shaderdata_t {
-    uint palTimesTransTables;
-  } shaderdata;
+  flat in uint flags;
+  flat in uint palTimesTransTables;
 
   uniform usampler2D tex;
   uniform sampler3D pal;
 
   out vec4 fragcolor;
-  flat in uint trans;
 
   void main() {
     uint ind = texelFetch(tex, ivec2(coord), 0).r;
-    fragcolor = texelFetch(pal, ivec3(ind, 0, shaderdata.palTimesTransTables+trans), 0);
+    fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables+(flags&15u)), 0);
   }
 
   );

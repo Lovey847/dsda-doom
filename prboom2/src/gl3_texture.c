@@ -84,12 +84,15 @@ static void AddP(rect_renderFunc_t render, rect_renderFunc_t renderRot,
 {
   // Check if rect should be flipped
   if (width > height) {
-    out->width = height;
-    out->height = width;
+    // Pad right and bottom of rect
+    // TODO: This isn't really sufficient, I need to
+    //       implement more complicated margin!
+    out->width = height+1;
+    out->height = width+1;
     out->render = renderRot;
   } else {
-    out->width = width;
-    out->height = height;
+    out->width = width+1;
+    out->height = height+1;
     out->render = render;
   }
 }
@@ -125,7 +128,10 @@ static void AddTexture(rect_t *r, int tex) {
 static void AddFlat(rect_t *r, int flump) {
   r->data.flat.lump = flump;
   r->render = RenderFlat;
-  r->width = r->height = 64;
+
+  // Pad right and bottom of rect
+  // TODO: See above
+  r->width = r->height = 65;
 }
 
 // Non-recursive rectangle quicksort routine
@@ -302,6 +308,10 @@ static void PackRects(rect_t *r, size_t rcnt) {
       // Can't pack rectangle into texture page, error out
       I_Error("PackRects: Ran out of room!\n");
     }
+
+    // Unpad rectangle after packing
+    --r->width;
+    --r->height;
   }
 
   // Free regions
