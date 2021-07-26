@@ -34,7 +34,7 @@ typedef struct gl3_shader_s {
 
 // Uniform block used in shaders
 typedef struct gl3_block_s {
-  unsigned int pal;
+  unsigned int palTimesTransTables; // pal * (CR_LIMIT+1)
 } gl3_block_t;
 
 // Shaders

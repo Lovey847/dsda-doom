@@ -26,6 +26,7 @@
 typedef struct gl3_vert_s {
   float x, y, z; // Normalized, 0-1
   gl3_texcoord_t coord;
+  byte trans; // Color translation table (0 for none)
 } gl3_vert_t;
 
 // Raw vertex & index buffer
@@ -53,7 +54,7 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
                    const unsigned short *inds, size_t indcnt);
 
 // Add image to buffer at specified position
-void gl3_AddImage(const gl3_img_t *img, float x, float y, enum patch_translation_e flags);
+void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_translation_e flags);
 
 // Add triangle to buffer
 static const unsigned short gl3_triangleInds[3] = {0, 1, 2};

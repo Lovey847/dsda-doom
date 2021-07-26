@@ -47,9 +47,13 @@ static void SetupVAO(GLuint vao) {
   GL3(gl3_glVertexAttribPointer(1,
                                 2, GL_UNSIGNED_SHORT, GL_FALSE,
                                 sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, coord)));
+  GL3(gl3_glVertexAttribIPointer(2,
+                                 1, GL_UNSIGNED_BYTE,
+                                 sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, trans)));
 
   GL3(gl3_glEnableVertexAttribArray(0));
   GL3(gl3_glEnableVertexAttribArray(1));
+  GL3(gl3_glEnableVertexAttribArray(2));
 }
 
 //////////////////////////
@@ -142,7 +146,7 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
   curind += indcnt;
 }
 
-void gl3_AddImage(const gl3_img_t *img, float x, float y, enum patch_translation_e flags) {
+void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_translation_e flags) {
   static const float two_over_320 = 2.f/320.f;
   static const float negative_two_over_200 = -2.f/200.f;
 
@@ -153,11 +157,14 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, enum patch_translation
 
   gl3_vert_t verts[4] = {};
   float ex, ey; // End point
+  byte trans = 0; // Color translation table to use (0 for none)
 
   if (!(flags & VPT_NOOFFSET)) {
     x -= img->leftoffset;
     y -= img->topoffset;
   }
+
+  if ((flags&VPT_TRANS) && (cm < CR_LIMIT)) trans = cm+1;
 
   // Convert to normalized coordinates
   if (flags&VPT_STRETCH_MASK) {
@@ -195,6 +202,7 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, enum patch_translation
   verts[2].x = x;
   verts[2].y = ey;
   verts[2].coord = img->bl;
+  verts[2].trans = trans; // Only give trans to the provoking vertex
 
   verts[3].x = ex;
   verts[3].y = ey;

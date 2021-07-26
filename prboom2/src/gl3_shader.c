@@ -21,18 +21,21 @@
 #include "i_system.h"
 
 // TODO: Store shader source code in dsda-doom.wad!
-#define SHADERSRC(...) "#version 330 core\n\n" #__VA_ARGS__
+#define SHADERSRC(...) "#version 330 core\n" #__VA_ARGS__
 
 static const char vertexShader[] = SHADERSRC(
   layout(location = 0) in vec3 invert;
   layout(location = 1) in vec2 incoord;
+  layout(location = 2) in uint intrans;
 
   out vec2 coord;
+  flat out uint trans;
 
   void main() {
     gl_Position = vec4(invert, 1.0);
 
     coord = incoord;
+    trans = intrans;
   }
 
   );
@@ -41,17 +44,18 @@ static const char fragmentShader[] = SHADERSRC(
   in vec2 coord;
 
   layout(std140) uniform shaderdata_t {
-    uint pal;
+    uint palTimesTransTables;
   } shaderdata;
 
   uniform usampler2D tex;
   uniform sampler3D pal;
 
   out vec4 fragcolor;
+  flat in uint trans;
 
   void main() {
     uint ind = texelFetch(tex, ivec2(coord), 0).r;
-    fragcolor = texelFetch(pal, ivec3(ind, 0, shaderdata.pal), 0);
+    fragcolor = texelFetch(pal, ivec3(ind, 0, shaderdata.palTimesTransTables+trans), 0);
   }
 
   );

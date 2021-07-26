@@ -67,6 +67,8 @@
           GLenum, GLsizeiptr, const void*, GLenum)                      \
   DEFFUNC(void, glVertexAttribPointer,                                  \
           GLuint, GLint, GLenum, GLboolean, GLsizei, const void*)       \
+  DEFFUNC(void, glVertexAttribIPointer,                                 \
+          GLuint, GLint, GLenum, GLsizei, const void*)                  \
   DEFFUNC(void, glEnableVertexAttribArray, GLuint)                      \
   DEFFUNC(void, glDeleteBuffers, GLsizei, const GLuint*)                \
   DEFFUNC(void, glDeleteVertexArrays, GLsizei, const GLuint*)           \

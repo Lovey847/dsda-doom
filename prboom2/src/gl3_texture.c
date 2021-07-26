@@ -466,14 +466,19 @@ gl3_img_t **gl3_teximg;
 GLuint gl3_textures[GL3_TEXTURE_COUNT];
 
 static void gl3_InitPal(void) {
+  // maps: Number of maps in colormap
+  // pals: Number of palettes in playpal
+  // ind: Current index into map
+  // map: Current map from colormap
+  // trans: Current active translation table (0 for no translation table)
+  // pal: Current palette
   size_t maps, pals;
-  size_t ind, map, pal;
+  size_t ind, map, trans, pal;
   size_t width, height, depth;
 
   // playpal: PLAYPAL lump
   // colmap: COLORMAP lump
-  // outpal: Output palette, in RGBA8 format
-  //         Filled for each combination of PLAYPAL and COLORMAP
+  // outpal: Output buffer, in RGBA8 format
   const byte *playpal, *colmap;
   byte *outpal;
 
@@ -497,8 +502,8 @@ static void gl3_InitPal(void) {
   // Height (number of maps)
   height = maps;
 
-  // Depth (number of palettes)
-  depth = pals;
+  // Depth (number of palettes and translation tables)
+  depth = pals*(CR_LIMIT+1);
 
   GL3(glBindTexture(GL_TEXTURE_3D, gl3_textures[GL3_TEXTURE_PALETTE]));
 
@@ -525,23 +530,43 @@ static void gl3_InitPal(void) {
   outpal = (byte*)Z_Malloc((256*4)*maps, PU_STATIC, NULL);
 
   for (pal = 0; pal < pals; ++pal) {
-    for (map = 0; map < maps; ++map) {
-      const size_t mapind = (256*4)*map;
+    for (trans = 0; trans < CR_LIMIT+1; ++trans) {
+      // No translation table
+      if (trans == 0) {
+        for (map = 0; map < maps; ++map) {
+          const size_t mapind = (256*4)*map;
 
-      for (ind = 0; ind < 256; ++ind) {
-        const size_t palind = 768*pal + 3*colmap[256*map + ind];
+          for (ind = 0; ind < 256; ++ind) {
+            const size_t palind = 768*pal + 3*colmap[256*map + ind];
 
-        outpal[mapind + ind*4] = playpal[palind];
-        outpal[mapind + ind*4 + 1] = playpal[palind+1];
-        outpal[mapind + ind*4 + 2] = playpal[palind+2];
-        outpal[mapind + ind*4 + 3] = 255 * (ind != playpaldata->transparent);
+            outpal[mapind + ind*4] = playpal[palind];
+            outpal[mapind + ind*4 + 1] = playpal[palind+1];
+            outpal[mapind + ind*4 + 2] = playpal[palind+2];
+            outpal[mapind + ind*4 + 3] =
+              255 * (colmap[256*map + ind] != playpaldata->transparent);
+          }
+        }
+      } else {
+        for (map = 0; map < maps; ++map) {
+          const size_t mapind = (256*4)*map;
+
+          for (ind = 0; ind < 256; ++ind) {
+            const size_t palind = 768*pal + 3*colmap[256*map + colrngs[trans-1][ind]];
+
+            outpal[mapind + ind*4] = playpal[palind];
+            outpal[mapind + ind*4 + 1] = playpal[palind+1];
+            outpal[mapind + ind*4 + 2] = playpal[palind+2];
+            outpal[mapind + ind*4 + 3] =
+              255 * (colmap[256*map + colrngs[trans-1][ind]] != playpaldata->transparent);
+          }
+        }
       }
-    }
 
-    GL3(glTexSubImage3D(GL_TEXTURE_3D, 0,
-                        0, 0, pal,
-                        256, maps, 1,
-                        GL_RGBA, GL_UNSIGNED_BYTE, outpal));
+      GL3(glTexSubImage3D(GL_TEXTURE_3D, 0,
+                          0, 0, trans + (CR_LIMIT+1)*pal,
+                          256, maps, 1,
+                          GL_RGBA, GL_UNSIGNED_BYTE, outpal));
+    }
   }
 
   Z_Free(outpal);

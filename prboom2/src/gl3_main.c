@@ -183,7 +183,7 @@ void gl3_Finish(void) {
 }
 
 void gl3_SetPalette(int palette) {
-  gl3_shaderdata.pal = palette;
+  gl3_shaderdata.palTimesTransTables = palette*(CR_LIMIT+1);
 }
 
 void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color) {
@@ -219,7 +219,7 @@ void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
 
   // Log invalid patches
   if (!img) ReportInvalidPatch(lump);
-  else gl3_AddImage(img, x, y, flags);
+  else gl3_AddImage(img, x, y, cm, flags);
 }
 
 void gl3_PlotPixel(int scrn, int x, int y, byte color) {
