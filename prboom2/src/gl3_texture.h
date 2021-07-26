@@ -42,7 +42,7 @@ typedef struct gl3_texcoord_s {
 // Image from texture page
 typedef struct gl3_img_s {
   // Corners of texture in texture page
-  gl3_texcoord_t tl, tr, bl, br;
+  gl3_texcoord_t tl, br;
 
   // Offset to top left of patch
   // 0, 0 if not applicable

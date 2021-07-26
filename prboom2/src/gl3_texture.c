@@ -45,9 +45,7 @@ typedef void (*rect_renderFunc_t)(struct rect_s *r);
 
 // Rect rendering functions
 static void RenderPatch(struct rect_s *r);
-static void RenderPatchRot(struct rect_s *r);
 static void RenderTexture(struct rect_s *r);
-static void RenderTextureRot(struct rect_s *r);
 static void RenderFlat(struct rect_s *r);
 
 typedef struct rect_s {
@@ -79,23 +77,6 @@ typedef struct rect_s {
 // Maximum texture page size, don't just use gl3_GL_MAX_TEXTURE_SIZE
 static int maxpagewidth = 0, maxpageheight = 0;
 
-// Add patch graphic to rectangle list
-static void AddP(rect_renderFunc_t render, rect_renderFunc_t renderRot,
-                 int id, int width, int height, rect_t *out)
-{
-  // Check if rect should be flipped
-  if (width > height) {
-    // Pad pixels around rect
-    out->width = height+2;
-    out->height = width+2;
-    out->render = renderRot;
-  } else {
-    out->width = width+2;
-    out->height = height+2;
-    out->render = render;
-  }
-}
-
 // Add patch
 static void AddPatch(rect_t *r, int plump) {
   const rpatch_t *p;
@@ -104,8 +85,9 @@ static void AddPatch(rect_t *r, int plump) {
 
   p = R_CachePatchNum(plump);
 
-  // Store patch rotated by default, rotation makes it upright
-  AddP(RenderPatch, RenderPatchRot, plump, p->height, p->width, r);
+  r->width = p->width+2;
+  r->height = p->height+2;
+  r->render = RenderPatch;
   R_UnlockPatchNum(plump);
 }
 
@@ -118,8 +100,9 @@ static void AddTexture(rect_t *r, int tex) {
 
   p = R_CacheTextureCompositePatchNum(tex);
 
-  // Store patch rotated by default, rotation makes it upright but flipped
-  AddP(RenderTexture, RenderTextureRot, tex, p->height, p->width, r);
+  r->width = p->width+2;
+  r->height = p->height+2;
+  r->render = RenderTexture;
   R_UnlockTextureCompositePatchNum(tex);
 }
 
@@ -367,7 +350,7 @@ static void RenderPaddedRect(const byte *out, int x, int y, int width, int heigh
 
 // Render patch into texture, used by render functions
 // Also set up image
-static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
+static void RenderP(const rpatch_t *p, rect_t *r) {
   size_t x, post, y;
   byte *out;
   dsda_playpal_t *playpaldata;
@@ -381,26 +364,12 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
 
   memset(out, playpaldata->transparent, alignedwidth*r->height);
 
-  if (rot) {
-    // Render rotated patch
-    // Looks upright since patches are stored column by column,
-    // and are usually rendered rotated since it's faster
-    for (x = 0; x < r->width; ++x) {
-      for (post = 0; post < p->columns[x].numPosts; ++post) {
-        for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
-             y-- > p->columns[x].posts[post].topdelta;)
-        {
-          out[y*alignedwidth + x] = p->columns[x].pixels[y];
-        }
-      }
-    }
-  } else {
-    for (x = 0; x < r->height; ++x) {
-      for (post = 0; post < p->columns[x].numPosts; ++post) {
-        // Account for padding on left and top
-        memcpy(out + x*alignedwidth + p->columns[x].posts[post].topdelta,
-               p->columns[x].pixels + p->columns[x].posts[post].topdelta,
-               p->columns[x].posts[post].length);
+  for (x = 0; x < r->width; ++x) {
+    for (post = 0; post < p->columns[x].numPosts; ++post) {
+      for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
+           y-- > p->columns[x].posts[post].topdelta;)
+      {
+        out[y*alignedwidth + x] = p->columns[x].pixels[y];
       }
     }
   }
@@ -410,19 +379,11 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
   Z_Free(out);
 
   // Set image properties
-  if (rot) {
-    r->img->tl.x = r->img->bl.x = r->x;
-    r->img->tr.x = r->img->br.x = r->x+r->width;
+  r->img->tl.x = r->x;
+  r->img->br.x = r->x+r->width;
 
-    r->img->tl.y = r->img->tr.y = r->y;
-    r->img->bl.y = r->img->br.y = r->y+r->height;
-  } else {
-    r->img->tl.x = r->img->tr.x = r->x;
-    r->img->bl.x = r->img->br.x = r->x+r->width;
-
-    r->img->tl.y = r->img->bl.y = r->y;
-    r->img->tr.y = r->img->br.y = r->y+r->height;
-  }
+  r->img->tl.y = r->y;
+  r->img->br.y = r->y+r->height;
 
   r->img->leftoffset = p->leftoffset;
   r->img->topoffset = p->topoffset;
@@ -434,28 +395,14 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
 // Render patch into texture page
 static void RenderPatch(struct rect_s *r) {
   const rpatch_t *p = R_CachePatchNum(r->data.patch.lump);
-  RenderP(p, r, false);
-  R_UnlockPatchNum(r->data.patch.lump);
-}
-
-// Render rotated patch into texture page
-static void RenderPatchRot(struct rect_s *r) {
-  const rpatch_t *p = R_CachePatchNum(r->data.patch.lump);
-  RenderP(p, r, true);
+  RenderP(p, r);
   R_UnlockPatchNum(r->data.patch.lump);
 }
 
 // Render texture into texture page
 static void RenderTexture(struct rect_s *r) {
   const rpatch_t *p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
-  RenderP(p, r, false);
-  R_UnlockTextureCompositePatchNum(r->data.texture.tex);
-}
-
-// Render rotated texture into texture page
-static void RenderTextureRot(struct rect_s *r) {
-  const rpatch_t *p = R_CacheTextureCompositePatchNum(r->data.texture.tex);
-  RenderP(p, r, true);
+  RenderP(p, r);
   R_UnlockTextureCompositePatchNum(r->data.texture.tex);
 }
 
@@ -466,17 +413,17 @@ static void RenderFlat(struct rect_s *r) {
   W_UnlockLumpNum(r->data.flat.lump);
 
   // Set image properties
-  r->img->tl.x = r->img->bl.x = r->x;
-  r->img->tr.x = r->img->br.x = r->x+r->width;
+  r->img->tl.x = r->x;
+  r->img->br.x = r->x+64;
 
-  r->img->tl.y = r->img->tr.y = r->y;
-  r->img->bl.y = r->img->br.y = r->y+r->height;
+  r->img->tl.y = r->y;
+  r->img->br.y = r->y+64;
 
   r->img->leftoffset = r->img->topoffset = 0;
   r->img->width = r->img->height = 64;
 }
 
-// Render all rectangles into texture pages
+// Render all rectangles into texture page
 static void RenderRects(rect_t *rects, size_t rcnt) {
   rect_t *end = rects+rcnt;
 
@@ -798,6 +745,9 @@ static void gl3_InitPages(void) {
   // Now we're done with the rectangles
   Z_Free(rectbuf);
 
+  // Log texture size
+  lprintf(LO_INFO, "gl3_InitPages: Initialized %dx%d texture\n", maxpagewidth, maxpageheight);
+
   // DEBUG: Log all images
   if (M_CheckParm("-gl3debug_writeimages")) {
     FILE *out = fopen("img.txt", "w");
@@ -806,16 +756,12 @@ static void gl3_InitPages(void) {
               "Image %d:\n"
               "  Bounds:\n"
               "    Top left: %hd %hd\n"
-              "    Top right: %hd %hd\n"
-              "    Bottom left: %hd %hd\n"
               "    Bottom right: %hd %hd\n"
               "  Offset: %d %d\n"
               "  Size: %d %d\n",
 
               (int)i,
               gl3_images[i].tl.x, gl3_images[i].tl.y,
-              gl3_images[i].tr.x, gl3_images[i].tr.y,
-              gl3_images[i].bl.x, gl3_images[i].bl.y,
               gl3_images[i].br.x, gl3_images[i].br.y,
               gl3_images[i].leftoffset, gl3_images[i].topoffset,
               gl3_images[i].width, gl3_images[i].height);
@@ -861,6 +807,7 @@ static void gl3_InitPages(void) {
 void gl3_InitTextures(void) {
   // Create all textures
   GL3(glGenTextures(GL3_TEXTURE_COUNT, gl3_textures));
+
   // Initialize textures
   gl3_InitPal();
   gl3_InitPages();

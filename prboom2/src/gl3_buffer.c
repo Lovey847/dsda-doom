@@ -204,12 +204,14 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_tra
 
   verts[1].x = ex;
   verts[1].y = y;
-  verts[1].coord = img->tr;
+  verts[1].coord.x = img->br.x;
+  verts[1].coord.y = img->tl.y;
   verts[1].flags = vflags;
 
   verts[2].x = x;
   verts[2].y = ey;
-  verts[2].coord = img->bl;
+  verts[2].coord.x = img->tl.x;
+  verts[2].coord.y = img->br.y;
   verts[2].flags = vflags;
 
   verts[3].x = ex;
