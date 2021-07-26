@@ -127,8 +127,8 @@ static void AddFlat(rect_t *r, int flump) {
   r->data.flat.lump = flump;
   r->render = RenderFlat;
 
-  // TODO: Tile-pad this!
-  r->width = r->height = 64;
+  // Pad around flat
+  r->width = r->height = 66;
 }
 
 // Non-recursive rectangle quicksort routine
@@ -305,6 +305,12 @@ static void PackRects(rect_t *r, size_t rcnt) {
       // Can't pack rectangle into texture page, error out
       I_Error("PackRects: Ran out of room!\n");
     }
+
+    // Unpad rect after packing
+    ++r->x;
+    ++r->y;
+    r->width -= 2;
+    r->height -= 2;
   }
 
   // Free regions
@@ -313,6 +319,43 @@ static void PackRects(rect_t *r, size_t rcnt) {
 
 //////////////////////////
 // Texture page renderer
+
+// Render padded rect
+static void RenderPaddedRect(const byte *out, int x, int y, int width, int height, int alignedwidth) {
+  // Fill padding around rect
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x, y-1, width, 1,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x, y+height, width, 1,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out + alignedwidth*(height-1)));
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x-1, y, width, height,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x+1, y, width, height,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
+
+  // I know filling 1 texel at a time is kinda stupid,
+  // and there's probably a better way I can do this.
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x-1, y-1, 1, 1,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x+width, y-1, 1, 1,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out + width-1));
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x-1, y+height, 1, 1,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out + alignedwidth*(height-1)));
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x+width, y+height, 1, 1,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out + alignedwidth*(height-1) + width-1));
+
+  // Now actually draw the rect
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      x, y, width, height,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
+}
 
 // Render patch into texture, used by render functions
 // Also set up image
@@ -334,45 +377,27 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
     // Render rotated patch
     // Looks upright since patches are stored column by column,
     // and are usually rendered rotated since it's faster
-    for (x = 0; x < r->width-2; ++x) {
+    for (x = 0; x < r->width; ++x) {
       for (post = 0; post < p->columns[x].numPosts; ++post) {
         for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
              y-- > p->columns[x].posts[post].topdelta;)
         {
-          // Account for padding on left and top
-          out[(y+1)*alignedwidth + x + 1] = p->columns[x].pixels[y];
+          out[y*alignedwidth + x] = p->columns[x].pixels[y];
         }
       }
     }
   } else {
-    for (x = 0; x < r->height-2; ++x) {
+    for (x = 0; x < r->height; ++x) {
       for (post = 0; post < p->columns[x].numPosts; ++post) {
         // Account for padding on left and top
-        memcpy(out + (x+1)*alignedwidth + p->columns[x].posts[post].topdelta+1,
+        memcpy(out + x*alignedwidth + p->columns[x].posts[post].topdelta,
                p->columns[x].pixels + p->columns[x].posts[post].topdelta,
                p->columns[x].posts[post].length);
       }
     }
   }
 
-  // Fill padding around rectangle
-  for (y = 1; y < r->height-1; ++y) {
-    out[y*alignedwidth] = out[y*alignedwidth+1];
-    out[y*alignedwidth + r->width-1] = out[y*alignedwidth + r->width-2];
-  }
-
-  memcpy(out, out + alignedwidth, r->width);
-  memcpy(out + (r->height-1)*alignedwidth, out + (r->height-2)*alignedwidth, r->width);
-
-  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
-                      r->x, r->y, r->width, r->height,
-                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
-
-  // Unpad after rendering
-  ++r->x;
-  ++r->y;
-  r->width -= 2;
-  r->height -= 2;
+  RenderPaddedRect(out, r->x, r->y, r->width, r->height, alignedwidth);
 
   Z_Free(out);
 
@@ -429,9 +454,7 @@ static void RenderTextureRot(struct rect_s *r) {
 // Render flat into texture page
 static void RenderFlat(struct rect_s *r) {
   const byte *f = W_CacheLumpNum(r->data.flat.lump);
-  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
-                      r->x, r->y, 64, 64,
-                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, f));
+  RenderPaddedRect(f, r->x, r->y, 64, 64, 64);
   W_UnlockLumpNum(r->data.flat.lump);
 
   // Set image properties
