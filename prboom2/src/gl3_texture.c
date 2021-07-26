@@ -84,15 +84,13 @@ static void AddP(rect_renderFunc_t render, rect_renderFunc_t renderRot,
 {
   // Check if rect should be flipped
   if (width > height) {
-    // Pad right and bottom of rect
-    // TODO: This isn't really sufficient, I need to
-    //       implement more complicated margin!
-    out->width = height+1;
-    out->height = width+1;
+    // Pad pixels around rect
+    out->width = height+2;
+    out->height = width+2;
     out->render = renderRot;
   } else {
-    out->width = width+1;
-    out->height = height+1;
+    out->width = width+2;
+    out->height = height+2;
     out->render = render;
   }
 }
@@ -129,9 +127,8 @@ static void AddFlat(rect_t *r, int flump) {
   r->data.flat.lump = flump;
   r->render = RenderFlat;
 
-  // Pad right and bottom of rect
-  // TODO: See above
-  r->width = r->height = 65;
+  // TODO: Tile-pad this!
+  r->width = r->height = 64;
 }
 
 // Non-recursive rectangle quicksort routine
@@ -308,10 +305,6 @@ static void PackRects(rect_t *r, size_t rcnt) {
       // Can't pack rectangle into texture page, error out
       I_Error("PackRects: Ran out of room!\n");
     }
-
-    // Unpad rectangle after packing
-    --r->width;
-    --r->height;
   }
 
   // Free regions
@@ -341,28 +334,45 @@ static void RenderP(const rpatch_t *p, rect_t *r, dboolean rot) {
     // Render rotated patch
     // Looks upright since patches are stored column by column,
     // and are usually rendered rotated since it's faster
-    for (x = 0; x < r->width; ++x) {
+    for (x = 0; x < r->width-2; ++x) {
       for (post = 0; post < p->columns[x].numPosts; ++post) {
         for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
              y-- > p->columns[x].posts[post].topdelta;)
         {
-          out[y*alignedwidth + x] = p->columns[x].pixels[y];
+          // Account for padding on left and top
+          out[(y+1)*alignedwidth + x + 1] = p->columns[x].pixels[y];
         }
       }
     }
   } else {
-    for (x = 0; x < r->height; ++x) {
+    for (x = 0; x < r->height-2; ++x) {
       for (post = 0; post < p->columns[x].numPosts; ++post) {
-        memcpy(out + x*alignedwidth + p->columns[x].posts[post].topdelta,
+        // Account for padding on left and top
+        memcpy(out + (x+1)*alignedwidth + p->columns[x].posts[post].topdelta+1,
                p->columns[x].pixels + p->columns[x].posts[post].topdelta,
                p->columns[x].posts[post].length);
       }
     }
   }
 
+  // Fill padding around rectangle
+  for (y = 1; y < r->height-1; ++y) {
+    out[y*alignedwidth] = out[y*alignedwidth+1];
+    out[y*alignedwidth + r->width-1] = out[y*alignedwidth + r->width-2];
+  }
+
+  memcpy(out, out + alignedwidth, r->width);
+  memcpy(out + (r->height-1)*alignedwidth, out + (r->height-2)*alignedwidth, r->width);
+
   GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
                       r->x, r->y, r->width, r->height,
                       GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
+
+  // Unpad after rendering
+  ++r->x;
+  ++r->y;
+  r->width -= 2;
+  r->height -= 2;
 
   Z_Free(out);
 

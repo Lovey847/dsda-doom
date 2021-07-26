@@ -107,6 +107,7 @@ int gl3_errno;
 
 // OpenGL implementation information
 int gl3_GL_MAX_TEXTURE_SIZE;
+int gl3_GL_MAX_3D_TEXTURE_SIZE;
 int gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT;
 
 // TODO: Implement error checking!
@@ -149,13 +150,16 @@ void gl3_Init(int width, int height) {
   // Get implementation values
   GL3(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl3_GL_MAX_TEXTURE_SIZE));
   gl3_GL_MAX_TEXTURE_SIZE >>= 2;
+  GL3(glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &gl3_GL_MAX_3D_TEXTURE_SIZE));
   GL3(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
   lprintf(LO_INFO,
           "gl3_Init: OpenGL implementation information:\n"
           "            GL_MAX_TEXTURE_SIZE: %d\n"
+          "            GL_MAX_3D_TEXTURE_SIZE: %d\n"
           "            GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT: %d\n",
 
-          gl3_GL_MAX_TEXTURE_SIZE, gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+          gl3_GL_MAX_TEXTURE_SIZE, gl3_GL_MAX_3D_TEXTURE_SIZE,
+          gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
 
   // Create textures
   gl3_InitTextures();
