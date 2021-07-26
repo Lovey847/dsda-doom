@@ -438,6 +438,7 @@ static void RenderRects(rect_t *rects, size_t rcnt, size_t page) {
   GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
   GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
   GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+  GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0));
 
   // Create texture data store
   GL3(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI,
@@ -500,6 +501,7 @@ static void gl3_InitPal(void) {
   GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
   GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
   GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+  GL3(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAX_LEVEL, 0));
 
   // Create texture
   GL3(glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8,
