@@ -76,7 +76,8 @@ typedef struct rect_s {
   } data;
 } rect_t;
 
-// Routines for adding various graphics to rectangle list
+// Maximum texture page size, don't just use gl3_GL_MAX_TEXTURE_SIZE
+static int maxpagewidth = 0, maxpageheight = 0;
 
 // Add patch graphic to rectangle list
 static void AddP(rect_renderFunc_t render, rect_renderFunc_t renderRot,
@@ -230,6 +231,8 @@ static void PackRects(rect_t *r, size_t rcnt) {
   regionbuf->next = NULL;
   regionbuf->x = 0;
   regionbuf->y = 0;
+
+  // Maximum possible value of maxpagewidth and maxpageheight
   regionbuf->width = gl3_GL_MAX_TEXTURE_SIZE;
   regionbuf->height = gl3_GL_MAX_TEXTURE_SIZE;
 
@@ -258,11 +261,16 @@ static void PackRects(rect_t *r, size_t rcnt) {
       if ((r->width > region->width) ||
           (r->height > region->height)) continue;
 
+      // Set rect at new position
+      r->x = region->x;
+      r->y = region->y;
+
+      // If rect goes out of page bounds, extend page
+      if (r->x+r->width > maxpagewidth) maxpagewidth = r->x+r->width;
+      if (r->y+r->height > maxpageheight) maxpageheight = r->y+r->height;
+
       // Region found, split region into 2
       regionval = *region; // Save value of old region
-
-      r->x = regionval.x;
-      r->y = regionval.y;
 
       // If this is the first rectangle of the row, split differently
       if (r->x == 0) {
@@ -469,12 +477,12 @@ static void RenderFlat(struct rect_s *r) {
 }
 
 // Render all rectangles into texture pages
-static void RenderRects(rect_t *rects, size_t rcnt, size_t page) {
+static void RenderRects(rect_t *rects, size_t rcnt) {
   rect_t *end = rects+rcnt;
 
-  GL3(glActiveTexture(GL_TEXTURE0+page));
+  GL3(glActiveTexture(GL_TEXTURE0+GL3_TEXTURE_PAGE));
 
-  GL3(glBindTexture(GL_TEXTURE_2D, gl3_textures[page]));
+  GL3(glBindTexture(GL_TEXTURE_2D, gl3_textures[GL3_TEXTURE_PAGE]));
 
   // Set texture parameters
   GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
@@ -483,9 +491,9 @@ static void RenderRects(rect_t *rects, size_t rcnt, size_t page) {
   GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
   GL3(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0));
 
-  // Create texture data store
+  // Create texture page
   GL3(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI,
-                   gl3_GL_MAX_TEXTURE_SIZE, gl3_GL_MAX_TEXTURE_SIZE,
+                   maxpagewidth, maxpageheight, // Just enough to fit all rects
                    0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, NULL));
   if (gl3_errno != GL_NO_ERROR)
     I_Error("Couldn't allocate texture page!\n");
@@ -762,26 +770,12 @@ static void gl3_InitPages(void) {
     AddPatch(rect++, lump);
   }
 
-  // Pack rectangles
-  PackRects(rectbuf, rect-rectbuf);
-
-  // Render rectangles into patch texture page
-  RenderRects(rectbuf, rect-rectbuf, GL3_TEXTURE_PATCHES);
-  rect = rectbuf;
-
   // Go through wall textures, adding each one
   for (lump = 0; lump < numtextures; ++lump) {
     gl3_teximg[lump] = img;
     rect->img = img++;
     AddTexture(rect++, lump);
   }
-
-  // Pack rectangles
-  PackRects(rectbuf, rect-rectbuf);
-
-  // Render rectangles into wall texture page
-  RenderRects(rectbuf, rect-rectbuf, GL3_TEXTURE_WALLS);
-  rect = rectbuf;
 
   // Go through flats, adding each one
   for (lump = fstart; lump < fend; ++lump) {
@@ -798,8 +792,8 @@ static void gl3_InitPages(void) {
   // Pack rectangles
   PackRects(rectbuf, rect-rectbuf);
 
-  // Render rectangles into flat texture page
-  RenderRects(rectbuf, rect-rectbuf, GL3_TEXTURE_FLATS);
+  // Render rectangles into texture page
+  RenderRects(rectbuf, rect-rectbuf);
 
   // Now we're done with the rectangles
   Z_Free(rectbuf);
@@ -838,33 +832,29 @@ static void gl3_InitPages(void) {
   }
 
   // DEBUG: Output texture page
-  if (M_CheckParm("-gl3debug_writepages")) {
-    for (i = GL3_TEXTURE_PATCHES; i < GL3_TEXTURE_COUNT; ++i) {
-      char name[] = "page0.data";
-      FILE *outf;
-      byte *out = Z_Malloc(gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, PU_STATIC, NULL), *o;
+  if (M_CheckParm("-gl3debug_writepage")) {
+    FILE *outf;
+    byte *out = Z_Malloc(maxpagewidth*maxpageheight*3, PU_STATIC, NULL), *o;
 
-      const byte *playpal = V_GetPlaypal();
+    const byte *playpal = V_GetPlaypal();
 
-      GL3(glActiveTexture(GL_TEXTURE0+i));
-      GL3(glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB_INTEGER, GL_UNSIGNED_BYTE, out));
+    GL3(glActiveTexture(GL_TEXTURE0+GL3_TEXTURE_PAGE));
+    GL3(glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB_INTEGER, GL_UNSIGNED_BYTE, out));
 
-      for (o = out+gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3 - 3; o != out-3; o -= 3) {
-        byte ind = *o;
-        o[2] = playpal[2+ind*3];
-        o[1] = playpal[1+ind*3];
-        o[0] = playpal[0+ind*3];
-      }
-
-      name[4] = '0'+i;
-      outf = fopen(name, "wb");
-      if (outf) {
-        fwrite(out, 1, gl3_GL_MAX_TEXTURE_SIZE*gl3_GL_MAX_TEXTURE_SIZE*3, outf);
-        fclose(outf);
-      } else lprintf(LO_INFO, "gl3_InitPages: Failed to create %s!\n", name);
-
-      Z_Free(out);
+    for (o = out+maxpagewidth*maxpageheight*3 - 3; o != out-3; o -= 3) {
+      byte ind = *o;
+      o[2] = playpal[2+ind*3];
+      o[1] = playpal[1+ind*3];
+      o[0] = playpal[0+ind*3];
     }
+
+    outf = fopen("page.data", "wb");
+    if (outf) {
+      fwrite(out, 1, maxpagewidth*maxpageheight*3, outf);
+      fclose(outf);
+    } else lprintf(LO_INFO, "gl3_InitPages: Failed to create page.data!\n");
+
+    Z_Free(out);
   }
 }
 

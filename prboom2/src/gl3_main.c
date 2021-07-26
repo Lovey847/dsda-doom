@@ -149,7 +149,6 @@ void gl3_Init(int width, int height) {
 
   // Get implementation values
   GL3(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl3_GL_MAX_TEXTURE_SIZE));
-  gl3_GL_MAX_TEXTURE_SIZE >>= 2;
   GL3(glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &gl3_GL_MAX_3D_TEXTURE_SIZE));
   GL3(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
   lprintf(LO_INFO,

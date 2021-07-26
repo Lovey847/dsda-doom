@@ -28,9 +28,8 @@ enum {
   // X = playpal choice, Y = colormap choice, Z = colormap index
   GL3_TEXTURE_PALETTE = 0,
 
-  // 2D R8UI texture pages containing every patch, sprite, etc.
-  // Categorized for shaders
-  GL3_TEXTURE_PATCHES, GL3_TEXTURE_WALLS, GL3_TEXTURE_FLATS,
+  // 2D R8UI texture page containing every patch, sprite, etc.
+  GL3_TEXTURE_PAGE,
 
   GL3_TEXTURE_COUNT
 };
