@@ -71,7 +71,7 @@ void gl3_Finish(void);
 // Update palette
 void gl3_SetPalette(int palette);
 
-// for v_video.c
+// V_* operations
 void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color);
 void gl3_DrawBackground(const char *flatname, int n);
 void gl3_FillFlat(int lump, int n, int x, int y, int width, int height,
@@ -85,5 +85,11 @@ void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
 void gl3_PlotPixel(int scrn, int x, int y, byte color);
 void gl3_PlotPixelWu(int scr, int x, int y, byte color, int weight);
 void gl3_DrawLine(fline_t *fl, int color);
+
+// Screen wipe effect
+void gl3_wipe_doMelt(int ticks, int *y_lookup);
+void gl3_wipe_exitMelt(int ticks);
+void gl3_wipe_StartScreen(void);
+void gl3_wipe_EndScreen(void);
 
 #endif //_GL3_MAIN_H

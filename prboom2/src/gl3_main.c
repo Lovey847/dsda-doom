@@ -252,3 +252,15 @@ void gl3_PlotPixelWu(int scr, int x, int y, byte color, int weight) {
 void gl3_DrawLine(fline_t *fl, int color) {
 
 }
+
+void gl3_wipe_doMelt(int ticks, int *y_lookup) {
+}
+
+void gl3_wipe_exitMelt(int ticks) {
+}
+
+void gl3_wipe_StartScreen(void) {
+}
+
+void gl3_wipe_EndScreen(void) {
+}

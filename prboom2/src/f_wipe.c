@@ -45,6 +45,7 @@
 #include "f_wipe.h"
 #ifdef GL_DOOM
 #include "gl_struct.h"
+#include "gl3_main.h"
 #endif
 #include "e6y.h"//e6y
 
@@ -160,6 +161,10 @@ static int wipe_doMelt(int ticks)
   {
     gld_wipe_doMelt(ticks, y_lookup);
   }
+  else if (V_GL3Active())
+  {
+    gl3_wipe_doMelt(ticks, y_lookup);
+  }
 #endif
   return done;
 }
@@ -172,6 +177,11 @@ static int wipe_exitMelt(int ticks)
   if (V_LegacyGLActive())
   {
     gld_wipe_exitMelt(ticks);
+    return 0;
+  }
+  else if (V_GL3Active())
+  {
+    gl3_wipe_exitMelt(ticks);
     return 0;
   }
 #endif
@@ -197,6 +207,11 @@ int wipe_StartScreen(void)
   if (V_LegacyGLActive())
   {
     gld_wipe_StartScreen();
+    return 0;
+  }
+  else if (V_GL3Active())
+  {
+    gl3_wipe_StartScreen();
     return 0;
   }
 #endif
@@ -226,6 +241,11 @@ int wipe_EndScreen(void)
   if (V_LegacyGLActive())
   {
     gld_wipe_EndScreen();
+    return 0;
+  }
+  else if (V_GL3Active())
+  {
+    gl3_wipe_EndScreen();
     return 0;
   }
 #endif
