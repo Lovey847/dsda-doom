@@ -354,6 +354,7 @@ static void RenderP(const rpatch_t *p, rect_t *r) {
   size_t x, post, y;
   byte *out;
   dsda_playpal_t *playpaldata;
+  byte transparent, duplicate, pix;
 
   // Align width to a 4-byte boundary for glTexSubImage2D
   const int alignedwidth = (r->width+3)&~3;
@@ -362,14 +363,26 @@ static void RenderP(const rpatch_t *p, rect_t *r) {
   out = Z_Malloc(alignedwidth*r->height, PU_STATIC, NULL);
   playpaldata = dsda_PlayPalData();
 
-  memset(out, playpaldata->transparent, alignedwidth*r->height);
+  transparent = playpaldata->transparent;
+  duplicate = playpaldata->duplicate;
+
+  // If there is no duplicate, keep transparent pixels invisible
+  if (duplicate < 0) duplicate = transparent;
+
+  memset(out, transparent, alignedwidth*r->height);
 
   for (x = 0; x < r->width; ++x) {
     for (post = 0; post < p->columns[x].numPosts; ++post) {
       for (y = p->columns[x].posts[post].topdelta + p->columns[x].posts[post].length;
            y-- > p->columns[x].posts[post].topdelta;)
       {
-        out[y*alignedwidth + x] = p->columns[x].pixels[y];
+        pix = p->columns[x].pixels[y];
+
+        // If this pixel is the transparent index, swap it out with the duplicate
+        if (pix == transparent)
+          pix = duplicate;
+
+        out[y*alignedwidth + x] = pix;
       }
     }
   }
@@ -478,11 +491,12 @@ static void gl3_InitPal(void) {
   // colmap: COLORMAP lump
   // outpal: Output buffer, in RGBA8 format
   const byte *playpal, *colmap;
-  byte *outpal;
+  byte *outpal, transparent;
 
   int colmapnum;
 
   dsda_playpal_t *playpaldata = dsda_PlayPalData();
+  transparent = playpaldata->transparent;
 
   // Set active texture
   GL3(glActiveTexture(GL_TEXTURE0+GL3_TEXTURE_PALETTE));
@@ -529,34 +543,25 @@ static void gl3_InitPal(void) {
 
   for (pal = 0; pal < pals; ++pal) {
     for (trans = 0; trans < CR_LIMIT+1; ++trans) {
-      // No translation table
-      if (trans == 0) {
-        for (map = 0; map < maps; ++map) {
-          const size_t mapind = (256*4)*map;
+      for (map = 0; map < maps; ++map) {
+        const size_t mapind = (256*4)*map;
 
-          for (ind = 0; ind < 256; ++ind) {
-            const size_t palind = 768*pal + 3*colmap[256*map + ind];
+        for (ind = 0; ind < 256; ++ind) {
+          size_t col = ind, palind;
 
-            outpal[mapind + ind*4] = playpal[palind];
-            outpal[mapind + ind*4 + 1] = playpal[palind+1];
-            outpal[mapind + ind*4 + 2] = playpal[palind+2];
-            outpal[mapind + ind*4 + 3] =
-              255 * (colmap[256*map + ind] != playpaldata->transparent);
-          }
-        }
-      } else {
-        for (map = 0; map < maps; ++map) {
-          const size_t mapind = (256*4)*map;
+          // No translation table
+          if (trans == 0)
+            col = colmap[256*map + col];
+          else
+            col = colmap[256*map + colrngs[trans-1][col]];
 
-          for (ind = 0; ind < 256; ++ind) {
-            const size_t palind = 768*pal + 3*colmap[256*map + colrngs[trans-1][ind]];
+          palind = 768*pal + 3*col;
 
-            outpal[mapind + ind*4] = playpal[palind];
-            outpal[mapind + ind*4 + 1] = playpal[palind+1];
-            outpal[mapind + ind*4 + 2] = playpal[palind+2];
-            outpal[mapind + ind*4 + 3] =
-              255 * (colmap[256*map + colrngs[trans-1][ind]] != playpaldata->transparent);
-          }
+          outpal[mapind + ind*4] = playpal[palind];
+          outpal[mapind + ind*4 + 1] = playpal[palind+1];
+          outpal[mapind + ind*4 + 2] = playpal[palind+2];
+          outpal[mapind + ind*4 + 3] =
+            255 * (ind != transparent);
         }
       }
 
@@ -779,23 +784,26 @@ static void gl3_InitPages(void) {
   // DEBUG: Output texture page
   if (M_CheckParm("-gl3debug_writepage")) {
     FILE *outf;
-    byte *out = Z_Malloc(maxpagewidth*maxpageheight*3, PU_STATIC, NULL), *o;
+    byte *out = Z_Malloc(maxpagewidth*maxpageheight*4, PU_STATIC, NULL);
+    dsda_playpal_t *playpaldata = dsda_PlayPalData();
+    size_t i;
 
     const byte *playpal = V_GetPlaypal();
 
     GL3(glActiveTexture(GL_TEXTURE0+GL3_TEXTURE_PAGE));
-    GL3(glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB_INTEGER, GL_UNSIGNED_BYTE, out));
+    GL3(glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
 
-    for (o = out+maxpagewidth*maxpageheight*3 - 3; o != out-3; o -= 3) {
-      byte ind = *o;
-      o[2] = playpal[2+ind*3];
-      o[1] = playpal[1+ind*3];
-      o[0] = playpal[0+ind*3];
+    for (i = maxpagewidth*maxpageheight; i--;) {
+      byte ind = out[i];
+      out[i*4 + 3] = 255 * (ind != playpaldata->transparent);
+      out[i*4 + 2] = playpal[2+ind*3];
+      out[i*4 + 1] = playpal[1+ind*3];
+      out[i*4 + 0] = playpal[0+ind*3];
     }
 
     outf = fopen("page.data", "wb");
     if (outf) {
-      fwrite(out, 1, maxpagewidth*maxpageheight*3, outf);
+      fwrite(out, 1, maxpagewidth*maxpageheight*4, outf);
       fclose(outf);
     } else lprintf(LO_INFO, "gl3_InitPages: Failed to create page.data!\n");
 
