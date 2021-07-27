@@ -1345,7 +1345,7 @@ void I_UpdateVideoMode(void)
     V_AllocScreens();
 
     R_InitBuffer(SCREENWIDTH, SCREENHEIGHT);
-  }
+  } else if (V_GL3Active()) gl3_Init(SCREENWIDTH, SCREENHEIGHT);
 
   // e6y: wide-res
   // Need some initialisations before level precache
@@ -1392,7 +1392,6 @@ void I_UpdateVideoMode(void)
     lprintf(LO_INFO,"    SDL_GL_STENCIL_SIZE: %i\n",temp);
 
     if (V_LegacyGLActive()) gld_Init(SCREENWIDTH, SCREENHEIGHT);
-    else if (V_GL3Active()) gl3_Init(SCREENWIDTH, SCREENHEIGHT);
   }
 
   if (V_GLActive())

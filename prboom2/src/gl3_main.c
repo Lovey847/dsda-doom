@@ -86,7 +86,7 @@ static void APIENTRY ErrorCallback(GLenum source, GLenum type, GLuint id,
 }
 #endif
 
-// Report invalid patch
+// Report invalid lump nums
 static void ReportInvalidPatch(int lump) {
   static int invalidpatches[32];
   static size_t invalidpatchcount = 0;
@@ -100,6 +100,10 @@ static void ReportInvalidPatch(int lump) {
 
   invalidpatches[invalidpatchcount++] = lump;
   lprintf(LO_INFO, "ReportInvalidPatch: Invalid patch %d!\n", lump);
+}
+
+static INLINE void ReportInvalidFlat(int flat) {
+  ReportInvalidPatch(flat+firstflat);
 }
 
 // OpenGL error code
@@ -198,13 +202,17 @@ void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color) {
 }
 
 void gl3_DrawBackground(const char *flatname, int n) {
-
+  gl3_FillFlat(R_FlatNumForName(flatname), n, 0, 0, SCREENWIDTH, SCREENHEIGHT, VPT_NONE);
 }
 
 void gl3_FillFlat(int lump, int n, int x, int y, int width, int height,
                   enum patch_translation_e flags)
 {
+  const gl3_img_t *img = gl3_GetFlat(lump);
 
+  // Log invalid flats
+  if (!img) ReportInvalidFlat(lump);
+  else gl3_AddImage(img, x, y, width, height, CR_DEFAULT, flags);
 }
 
 void gl3_FillPatch(int lump, int n, int x, int y, int width, int height,

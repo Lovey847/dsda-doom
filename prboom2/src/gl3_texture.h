@@ -20,6 +20,8 @@
 
 #include "gl3_main.h"
 
+#include "r_state.h"
+
 // Textures used in renderer
 enum {
   // 3D RGBA8 palette texture containing every
@@ -74,7 +76,7 @@ const gl3_img_t *gl3_GetWall(int id);
 // Get flat from lump number
 // Returns NULL if flat is not in texture
 static INLINE const gl3_img_t *gl3_GetFlat(int lump) {
-  return gl3_GetPatch(lump);
+  return gl3_GetPatch(lump+firstflat);
 }
 
 #endif //_GL3_TEXTURE_H

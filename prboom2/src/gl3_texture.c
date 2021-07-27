@@ -666,9 +666,8 @@ static void gl3_InitPages(void) {
   size_t i;
   int lump;
   int sstart, send;
-  int fstart, fend;
+  int fend;
 
-  fstart = W_GetNumForName("F_START")+1;
   fend = W_GetNumForName("F_END");
 
   sstart = W_GetNumForName("S_START")+1;
@@ -678,7 +677,7 @@ static void gl3_InitPages(void) {
     sizeof(patchlist)/sizeof(patchlist[0]) +
     send-sstart +
     numtextures +
-    fend-fstart;
+    numflats;
 
   img = gl3_images = Z_Malloc(sizeof(gl3_img_t)*gl3_imagecount, PU_STATIC, NULL);
   rect = rectbuf = Z_Malloc(sizeof(rect_t)*gl3_imagecount, PU_STATIC, NULL);
@@ -725,7 +724,7 @@ static void gl3_InitPages(void) {
   }
 
   // Go through flats, adding each one
-  for (lump = fstart; lump < fend; ++lump) {
+  for (lump = firstflat; lump < fend; ++lump) {
     if (W_LumpLength(lump) != 4096) {
       --gl3_imagecount;
       continue;

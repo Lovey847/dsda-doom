@@ -777,7 +777,7 @@ void R_FillBackScreen (void)
     int only_stbar;
 
 #ifdef GL_DOOM
-    if (V_LegacyGLActive())
+    if (V_GLActive())
     {
       only_stbar = (automap ? screenblocks >= 10 : screenblocks == 10);
     }

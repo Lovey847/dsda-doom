@@ -76,7 +76,7 @@ static const char fragmentShader[] = SHADERSRC(
   out vec4 fragcolor;
 
   void main() {
-    ivec2 c = ivec2(mod(coord, vec2(imgsize))) + imgcoord;
+    ivec2 c = ivec2(mod(coord, vec2(imgsize)))+imgcoord;
     uint ind = texelFetch(tex, c, 0).r;
     fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables+(flags&15u)), 0);
   }
