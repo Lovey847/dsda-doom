@@ -502,6 +502,7 @@ static void gl3_InitPal(void) {
   GL3(glActiveTexture(GL_TEXTURE0+GL3_TEXTURE_PALETTE));
 
   // Number of maps in colormap
+  // +1 for palette without map
   colmapnum = W_GetNumForName("COLORMAP");
   maps = W_LumpLength(colmapnum)/256;
 
@@ -547,21 +548,23 @@ static void gl3_InitPal(void) {
         const size_t mapind = (256*4)*map;
 
         for (ind = 0; ind < 256; ++ind) {
-          size_t col = ind, palind;
+          size_t col = ind, palind, outind;
 
-          // No translation table
-          if (trans == 0)
-            col = colmap[256*map + col];
-          else
-            col = colmap[256*map + colrngs[trans-1][col]];
+          // Use a translation table
+          if (trans)
+            col = colrngs[trans-1][col];
 
+          // Use a map
+          if (map)
+            col = colmap[256*(map-1) + col];
+
+          outind = mapind + ind*4;
           palind = 768*pal + 3*col;
 
-          outpal[mapind + ind*4] = playpal[palind];
-          outpal[mapind + ind*4 + 1] = playpal[palind+1];
-          outpal[mapind + ind*4 + 2] = playpal[palind+2];
-          outpal[mapind + ind*4 + 3] =
-            255 * (ind != transparent);
+          outpal[outind+0] = playpal[palind+0];
+          outpal[outind+1] = playpal[palind+1];
+          outpal[outind+2] = playpal[palind+2];
+          outpal[outind+3] = 255 * (ind != transparent);
         }
       }
 
@@ -574,9 +577,28 @@ static void gl3_InitPal(void) {
 
   Z_Free(outpal);
   W_UnlockLumpNum(colmapnum);
+
+  // DEBUG: Output palette texture
+  if (M_CheckParm("-gl3debug_writepal")) {
+    FILE *outf;
+    byte *out = Z_Malloc(256*maps*(CR_LIMIT+1)*pals*4, PU_STATIC, NULL);
+    size_t i;
+
+    const byte *playpal = V_GetPlaypal();
+
+    GL3(glGetTexImage(GL_TEXTURE_3D, 0, GL_RGBA, GL_UNSIGNED_BYTE, out));
+
+    outf = fopen("pal.data", "wb");
+    if (outf) {
+      fwrite(out, 1, 256*maps*(CR_LIMIT+1)*pals*4, outf);
+      fclose(outf);
+    } else lprintf(LO_INFO, "gl3_IniPal: Failed to create pal.data!\n");
+
+    Z_Free(out);
+  }
 }
 
-static void gl3_InitPages(void) {
+static void gl3_InitPage(void) {
   // Load all patches, textures, flats, etc. into the texture pages
   // Unidentifiable patch list
   static const char * const patchlist[] = {
@@ -750,7 +772,7 @@ static void gl3_InitPages(void) {
   Z_Free(rectbuf);
 
   // Log texture size
-  lprintf(LO_INFO, "gl3_InitPages: Initialized %dx%d texture\n", maxpagewidth, maxpageheight);
+  lprintf(LO_INFO, "gl3_InitPage: Initialized %dx%d texture\n", maxpagewidth, maxpageheight);
 
   // DEBUG: Log all images
   if (M_CheckParm("-gl3debug_writeimages")) {
@@ -805,10 +827,11 @@ static void gl3_InitPages(void) {
     if (outf) {
       fwrite(out, 1, maxpagewidth*maxpageheight*4, outf);
       fclose(outf);
-    } else lprintf(LO_INFO, "gl3_InitPages: Failed to create page.data!\n");
+    } else lprintf(LO_INFO, "gl3_InitPage: Failed to create page.data!\n");
 
     Z_Free(out);
   }
+
 }
 
 void gl3_InitTextures(void) {
@@ -817,7 +840,7 @@ void gl3_InitTextures(void) {
 
   // Initialize textures
   gl3_InitPal();
-  gl3_InitPages();
+  gl3_InitPage();
 
   // TODO: When OpenGL 3.3 is fully implemented, we must _actually_ free up
   //       OpenGL resources when switching video modes, instead of doing it
