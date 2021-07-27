@@ -163,7 +163,7 @@ static int wipe_doMelt(int ticks)
   }
   else if (V_GL3Active())
   {
-    gl3_wipe_doMelt(ticks, y_lookup);
+    gl3_wipe_doMelt(y_lookup);
   }
 #endif
   return done;

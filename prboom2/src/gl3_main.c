@@ -253,7 +253,8 @@ void gl3_DrawLine(fline_t *fl, int color) {
 
 }
 
-void gl3_wipe_doMelt(int ticks, int *y_lookup) {
+void gl3_wipe_doMelt(int *y_lookup) {
+  GL3(glClear(GL_COLOR_BUFFER_BIT));
 }
 
 void gl3_wipe_exitMelt(int ticks) {
