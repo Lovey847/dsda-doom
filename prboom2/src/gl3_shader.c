@@ -21,12 +21,21 @@
 #include "i_system.h"
 
 // TODO: Store shader source code in dsda-doom.wad!
-#define SHADERSRC(...) "#version 330 core\n" #__VA_ARGS__
+#define SHADERSRC(...) \
+  "#version 330 core\n"\
+  "#define LOC_INVERT 0\n"\
+  "#define LOC_INIMGCOORD 1\n"\
+  "#define LOC_INIMGSIZE 2\n"\
+  "#define LOC_INCOORD 3\n"\
+  "#define LOC_INFLAGS 4\n"\
+  #__VA_ARGS__
 
 static const char vertexShader[] = SHADERSRC(
-  layout(location = 0) in vec3 invert;
-  layout(location = 1) in vec2 incoord;
-  layout(location = 2) in uint inflags;
+  layout(location = LOC_INVERT) in vec3 invert;
+  layout(location = LOC_INIMGCOORD) in ivec2 inimgcoord;
+  layout(location = LOC_INIMGSIZE) in ivec2 inimgsize;
+  layout(location = LOC_INCOORD) in vec2 incoord;
+  layout(location = LOC_INFLAGS) in uint inflags;
 
   layout(std140) uniform shaderdata_t {
     // Palette, premultiplied by nuber of translation tables
@@ -36,6 +45,8 @@ static const char vertexShader[] = SHADERSRC(
     float height; // Wide screen height
   } shaderdata;
 
+  flat out ivec2 imgcoord;
+  flat out ivec2 imgsize;
   out vec2 coord;
   flat out uint flags;
   flat out uint palTimesTransTables;
@@ -43,6 +54,8 @@ static const char vertexShader[] = SHADERSRC(
   void main() {
     gl_Position = vec4(invert, 1.0);
 
+    imgcoord = inimgcoord;
+    imgsize = inimgsize;
     coord = incoord;
     flags = inflags;
     palTimesTransTables = shaderdata.palTimesTransTables;
@@ -51,6 +64,8 @@ static const char vertexShader[] = SHADERSRC(
   );
 
 static const char fragmentShader[] = SHADERSRC(
+  flat in ivec2 imgcoord;
+  flat in ivec2 imgsize;
   in vec2 coord;
   flat in uint flags;
   flat in uint palTimesTransTables;
@@ -61,7 +76,8 @@ static const char fragmentShader[] = SHADERSRC(
   out vec4 fragcolor;
 
   void main() {
-    uint ind = texelFetch(tex, ivec2(coord), 0).r;
+    ivec2 c = ivec2(mod(coord, vec2(imgsize))) + imgcoord;
+    uint ind = texelFetch(tex, c, 0).r;
     fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables+(flags&15u)), 0);
   }
 

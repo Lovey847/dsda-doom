@@ -210,7 +210,11 @@ void gl3_FillFlat(int lump, int n, int x, int y, int width, int height,
 void gl3_FillPatch(int lump, int n, int x, int y, int width, int height,
                    enum patch_translation_e flags)
 {
+  const gl3_img_t *img = gl3_GetPatch(lump);
 
+  // Log invalid patches
+  if (!img) ReportInvalidPatch(lump);
+  else gl3_AddImage(img, x, y, width, height, CR_DEFAULT, flags);
 }
 
 void gl3_DrawNumPatch(int x, int y, int scrn, int lump, int cm,
@@ -226,7 +230,7 @@ void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
 
   // Log invalid patches
   if (!img) ReportInvalidPatch(lump);
-  else gl3_AddImage(img, x, y, cm, flags);
+  else gl3_AddImage(img, x, y, img->width, img->height, cm, flags);
 }
 
 void gl3_PlotPixel(int scrn, int x, int y, byte color) {

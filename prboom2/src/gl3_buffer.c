@@ -44,16 +44,24 @@ static void SetupVAO(GLuint vao) {
   GL3(gl3_glVertexAttribPointer(0,
                                 4, GL_FLOAT, GL_FALSE,
                                 sizeof(gl3_vert_t), NULL));
-  GL3(gl3_glVertexAttribPointer(1,
+  GL3(gl3_glVertexAttribIPointer(1,
+                                 2, GL_UNSIGNED_SHORT,
+                                 sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, imgcoord)));
+  GL3(gl3_glVertexAttribIPointer(2,
+                                 2, GL_UNSIGNED_SHORT,
+                                 sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, imgsize)));
+  GL3(gl3_glVertexAttribPointer(3,
                                 2, GL_UNSIGNED_SHORT, GL_FALSE,
                                 sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, coord)));
-  GL3(gl3_glVertexAttribIPointer(2,
+  GL3(gl3_glVertexAttribIPointer(4,
                                  1, GL_UNSIGNED_INT,
                                  sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, flags)));
 
   GL3(gl3_glEnableVertexAttribArray(0));
   GL3(gl3_glEnableVertexAttribArray(1));
   GL3(gl3_glEnableVertexAttribArray(2));
+  GL3(gl3_glEnableVertexAttribArray(3));
+  GL3(gl3_glEnableVertexAttribArray(4));
 }
 
 //////////////////////////
@@ -146,7 +154,9 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
   curind += indcnt;
 }
 
-void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_translation_e flags) {
+void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float height,
+                  int cm, enum patch_translation_e flags)
+{
   static const float two_over_320 = 2.f/320.f;
   static const float negative_two_over_200 = -2.f/200.f;
 
@@ -155,7 +165,10 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_tra
   const float two_over_width = 2.f/(float)SCREENWIDTH;
   const float negative_two_over_height = -2.f/(float)SCREENHEIGHT;
 
-  gl3_vert_t verts[4] = {};
+  gl3_vert_t verts[4] = {
+    {}, {},
+    {0.f, 0.f, 0.f, {0, 0}, {999, 999}}
+  };
   float ex, ey; // End point
   GLuint vflags = 0;
 
@@ -175,8 +188,8 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_tra
 
     x = x*two_over_320*vidwidth_over_width-1.f;
     y = y*negative_two_over_200*vidheight_over_height+1.f; // Flip Y coordinate
-    ex = x + (float)img->width*two_over_320*vidwidth_over_width;
-    ey = y + (float)img->height*negative_two_over_200*vidheight_over_height;
+    ex = x + width*two_over_320*vidwidth_over_width;
+    ey = y + height*negative_two_over_200*vidheight_over_height;
 
     // Add screen properties
     x += (float)params->deltax1*two_over_width; // As far as I know, deltax2 == deltax1
@@ -186,8 +199,8 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_tra
   } else {
     x = x*two_over_width-1.f;
     y = y*negative_two_over_height+1.f;
-    ex = x + (float)img->width*two_over_width;
-    ey = y + (float)img->height*negative_two_over_height;
+    ex = x + width*two_over_width;
+    ey = y + height*negative_two_over_height;
   }
 
   if (flags&VPT_FLIP) {
@@ -199,25 +212,35 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_tra
   // Fill out verts
   verts[0].x = x;
   verts[0].y = y;
-  verts[0].coord = img->tl;
-  verts[0].flags = vflags;
+  verts[0].coord.x = 0;
+  verts[0].coord.y = 0;
 
   verts[1].x = ex;
   verts[1].y = y;
-  verts[1].coord.x = img->br.x;
-  verts[1].coord.y = img->tl.y;
-  verts[1].flags = vflags;
+  verts[1].coord.x = width;
+  verts[1].coord.y = 0;
 
   verts[2].x = x;
   verts[2].y = ey;
-  verts[2].coord.x = img->tl.x;
-  verts[2].coord.y = img->br.y;
-  verts[2].flags = vflags;
+  verts[2].coord.x = 0;
+  verts[2].coord.y = height;
 
   verts[3].x = ex;
   verts[3].y = ey;
-  verts[3].coord = img->br;
-  verts[3].flags = vflags;
+  verts[3].coord.x = width;
+  verts[3].coord.y = height;
+
+  // Set flat attributes for provoking vertex
+  verts[2].imgcoord = img->tl;
+
+  // If width == img->width and height == img->height, artifacting
+  // occurs in flipped images, make sure that doesn't happen!
+  // (imgsize set to {999, 999} above
+  if ((width != img->width) || (height != img->height)) {
+    verts[2].imgsize.x = img->width;
+    verts[2].imgsize.y = img->height;
+  }
+  verts[2].flags = vflags;
 
   // Draw quad
   gl3_AddQuad(verts);

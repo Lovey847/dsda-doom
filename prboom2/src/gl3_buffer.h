@@ -32,7 +32,11 @@ enum {
 // Rendering vertex
 typedef struct gl3_vert_s {
   float x, y, z; // Normalized, 0-1
-  gl3_texcoord_t coord;
+
+  // imgcoord: Top left coordinate of image in texture page
+  // imgsize: Size of image in texture page
+  // coord: Coordinate inside image in texture page (wraps around)
+  gl3_texcoord_t imgcoord, imgsize, coord;
   unsigned int flags;
 } gl3_vert_t;
 
@@ -61,7 +65,8 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
                    const unsigned short *inds, size_t indcnt);
 
 // Add image to buffer at specified position
-void gl3_AddImage(const gl3_img_t *img, float x, float y, int cm, enum patch_translation_e flags);
+void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float height,
+                  int cm, enum patch_translation_e flags);
 
 // Add triangle to buffer
 static const unsigned short gl3_triangleInds[3] = {0, 1, 2};
