@@ -157,8 +157,8 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
 void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float height,
                   int cm, enum patch_translation_e flags)
 {
-  static const float two_over_320 = 2.f/320.f;
-  static const float negative_two_over_200 = -2.f/200.f;
+  static const float one_over_320 = 1.f/320.f;
+  static const float one_over_200 = 1.f/200.f;
 
   const stretch_param_t * const params = &stretch_params[flags&VPT_ALIGN_MASK];
 
@@ -181,27 +181,51 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float hei
 
   // Convert to normalized coordinates
   if (flags&VPT_STRETCH_MASK) {
-    const float two_over_vidwidth = 2.f/(float)params->video->width;
-    const float negative_two_over_vidheight = -2.f/(float)params->video->height;
-    const float vidwidth_over_width = (float)params->video->width/(float)SCREENWIDTH;
-    const float vidheight_over_height = (float)params->video->height/(float)SCREENHEIGHT;
+    // x2lookup[n] == x1lookup[n+1]-1, which is good for the software renderer,
+    // but not very good for opengl
+    const size_t xi = (size_t)x;
+    const size_t yi = (size_t)y;
+    const size_t exi = (size_t)(x+width);
+    const size_t eyi = (size_t)(y+height);
 
-    x = x*two_over_320*vidwidth_over_width-1.f;
-    y = y*negative_two_over_200*vidheight_over_height+1.f; // Flip Y coordinate
-    ex = x + width*two_over_320*vidwidth_over_width;
-    ey = y + height*negative_two_over_200*vidheight_over_height;
+    // NOTE: If exi or eyi is less than 0, or xi
+    // is greater than 320, or yi is greater than 200,
+    // we can skip drawing this image
+    // Note because this code is slow and I'm gonna improve it in the future
+    if ((exi < 0) || (exi > 320))
+      ex = (x+width)*(float)params->video->width*one_over_320;
+    else
+      ex = (float)params->video->x1lookup[exi];
+
+    if ((eyi < 0) || (eyi > 200))
+      ey = (y+height)*(float)params->video->height*one_over_200;
+    else
+      ey = (float)params->video->y1lookup[eyi];
+
+    if ((xi < 0) || (xi > 320))
+      x = x*(float)params->video->width*one_over_320;
+    else
+      x = (float)params->video->x1lookup[xi];
+
+    if ((yi < 0) || (yi > 320))
+      y = y*(float)params->video->height*one_over_200;
+    else
+      y = (float)params->video->y1lookup[yi];
 
     // Add screen properties
-    x += (float)params->deltax1*two_over_width; // As far as I know, deltax2 == deltax1
-    y += (float)params->deltay1*negative_two_over_height;
-    ex += (float)params->deltax1*two_over_width;
-    ey += (float)params->deltay1*negative_two_over_height;
+    x += (float)params->deltax1;
+    y += (float)params->deltay1;
+    ex += (float)params->deltax2;
+    ey += (float)params->deltay1;
   } else {
-    x = x*two_over_width-1.f;
-    y = y*negative_two_over_height+1.f;
-    ex = x + width*two_over_width;
-    ey = y + height*negative_two_over_height;
+    ex = x+width;
+    ey = y+height;
   }
+
+  x = x*two_over_width-1.f;
+  y = y*negative_two_over_height+1.f;
+  ex = ex*two_over_width-1.f;
+  ey = ey*negative_two_over_height+1.f;
 
   if (flags&VPT_FLIP) {
     const float tmp = ex;

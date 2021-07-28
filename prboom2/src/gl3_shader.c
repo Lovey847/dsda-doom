@@ -47,12 +47,12 @@ static const char vertexShader[] = SHADERSRC(
 
   flat out ivec2 imgcoord;
   flat out ivec2 imgsize;
-  out vec2 coord;
+  noperspective out vec2 coord;
   flat out uint flags;
   flat out uint palTimesTransTables;
 
   void main() {
-    gl_Position = vec4(invert, 1.0);
+    gl_Position = vec4(invert.xy, 0.0, 1.0);
 
     imgcoord = inimgcoord;
     imgsize = inimgsize;
@@ -66,7 +66,7 @@ static const char vertexShader[] = SHADERSRC(
 static const char fragmentShader[] = SHADERSRC(
   flat in ivec2 imgcoord;
   flat in ivec2 imgsize;
-  in vec2 coord;
+  noperspective in vec2 coord;
   flat in uint flags;
   flat in uint palTimesTransTables;
 
