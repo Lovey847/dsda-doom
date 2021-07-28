@@ -24,9 +24,11 @@
 
 // Rendering vertex flags
 enum {
-  GL3_VERTFLAG_TRANS = 0,
+  // Patch flags
+  GL3_PFLAG_TRANS = 0,
 
-  GL3_VERTFLAG_TRANSMASK = 0xf << GL3_VERTFLAG_TRANS,
+  // Flag masks
+  GL3_PFLAG_TRANSMASK = 0xf << GL3_PFLAG_TRANS,
 };
 
 // Rendering vertex

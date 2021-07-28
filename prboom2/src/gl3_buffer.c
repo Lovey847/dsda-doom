@@ -177,7 +177,7 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float hei
     y -= img->topoffset;
   }
 
-  if ((flags&VPT_TRANS) && (cm < CR_LIMIT)) vflags |= (cm+1)&GL3_VERTFLAG_TRANSMASK;
+  if ((flags&VPT_TRANS) && (cm < CR_LIMIT)) vflags |= ((cm+1)<<GL3_PFLAG_TRANS)&GL3_PFLAG_TRANSMASK;
 
   // Convert to normalized coordinates
   if (flags&VPT_STRETCH_MASK) {

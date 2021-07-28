@@ -28,6 +28,7 @@
   "#define LOC_INIMGSIZE 2\n"\
   "#define LOC_INCOORD 3\n"\
   "#define LOC_INFLAGS 4\n"\
+  "#define PFLAG_TRANSMASK 15u\n"\
   #__VA_ARGS__
 
 static const char vertexShader[] = SHADERSRC(
@@ -78,7 +79,7 @@ static const char fragmentShader[] = SHADERSRC(
   void main() {
     ivec2 c = ivec2(mod(coord, vec2(imgsize))) + imgcoord;
     uint ind = texelFetch(tex, c, 0).r;
-    fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables+(flags&15u)), 0);
+    fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables+(flags&PFLAG_TRANSMASK)), 0);
   }
 
   );
