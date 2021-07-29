@@ -22,6 +22,16 @@
 #include "gl3_texture.h"
 #include "gl3_shader.h"
 
+// Buffers
+typedef enum gl3_buffer_e {
+  GL3_BUF_LINES = 0,
+  GL3_BUF_PATCHES,
+
+  GL3_BUF_COUNT,
+
+  GL3_BUF_NONE = -1
+} gl3_buffer_t;
+
 // Rendering vertex flags
 enum {
   // Line flags
@@ -49,10 +59,6 @@ typedef struct gl3_vert_s {
 } gl3_vert_t;
 
 
-// Maximum number of vertices and indices
-extern size_t gl3_vertcount;
-extern size_t gl3_indcount;
-
 // Uniform buffer
 extern gl3_block_t gl3_shaderdata;
 
@@ -62,36 +68,35 @@ void gl3_InitBuffers(size_t verts, size_t inds);
 // Delete buffers
 void gl3_DeleteBuffers(void);
 
-// Draw lines from current buffer
-void gl3_DrawLineBuffer(void);
-
-// Draw patches from current buffer
-void gl3_DrawPatchBuffer(void);
+// Flush remaining batches from buffers
+void gl3_FlushBuffers(void);
 
 // Add vertices to buffer
+// Will automatically flush if buf isn't the
+// current buffer
 void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
-                   const unsigned short *inds, size_t indcnt);
+                  const unsigned short *inds, size_t indcnt,
+                  gl3_buffer_t buf);
 
-// Add image to buffer at specified position
-void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float height,
-                  int cm, enum patch_translation_e flags);
-
-// Add line to buffer
-static const unsigned short gl3_lineInds[2] = {0, 1};
+// Add line to line buffer
 static INLINE void gl3_AddLine(const gl3_vert_t verts[2]) {
-  gl3_AddVerts(verts, 2, gl3_lineInds, 2);
+  gl3_AddVerts(verts, 2, NULL, 0, GL3_BUF_LINES);
 }
 
-// Add triangle to buffer
+// Add triangle to patch buffer
 static const unsigned short gl3_triangleInds[3] = {0, 1, 2};
 static INLINE void gl3_AddTriangle(const gl3_vert_t verts[3]) {
-  gl3_AddVerts(verts, 3, gl3_triangleInds, 3);
+  gl3_AddVerts(verts, 3, gl3_triangleInds, 3, GL3_BUF_PATCHES);
 }
 
-// Add quad to buffer
+// Add quad to patch buffer
 static const unsigned short gl3_quadInds[6] = {0, 1, 2, 3, 1, 2};
 static INLINE void gl3_AddQuad(const gl3_vert_t verts[4]) {
-  gl3_AddVerts(verts, 4, gl3_quadInds, 6);
+  gl3_AddVerts(verts, 4, gl3_quadInds, 6, GL3_BUF_PATCHES);
 }
+
+// Add image to patch buffer
+void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float height,
+                  int cm, enum patch_translation_e flags);
 
 #endif //_GL3_BUFFER_H

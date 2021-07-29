@@ -64,6 +64,11 @@ static void SetupVAO(GLuint vao) {
   GL3(gl3_glEnableVertexAttribArray(4));
 }
 
+static void OrphanBuffer(GLenum buf, GLsizeiptr bufsize, GLsizeiptr size, void *data) {
+  GL3(gl3_glBufferData(buf, bufsize, NULL, GL_STREAM_DRAW));
+  GL3(gl3_glBufferSubData(buf, 0, size, data));
+}
+
 //////////////////////////
 // Buffer handling
 
@@ -78,8 +83,11 @@ static gl3_vert_t *gl3_verts;
 static unsigned short *gl3_inds;
 
 // Maximum buffer sizes
-size_t gl3_vertcount;
-size_t gl3_indcount;
+static size_t gl3_vertcount;
+static size_t gl3_indcount;
+
+// Current active buffer
+static gl3_buffer_t curbuf = GL3_BUF_NONE;
 
 // Uniform buffer data
 gl3_block_t gl3_shaderdata;
@@ -122,45 +130,71 @@ void gl3_DeleteBuffers(void) {
   gl3_indcount = 0;
 }
 
-// Draw buffer for lines
-void gl3_DrawLineBuffer(void) {
+// Flush current buffer
+void gl3_FlushBuffers(void) {
+  // No vertices to draw
+  if (!curvert) return;
+
   // Orphan buffers
-  GL3(gl3_glBufferData(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount, NULL, GL_STREAM_DRAW));
-  GL3(gl3_glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(gl3_vert_t)*curvert, gl3_verts));
-  GL3(gl3_glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount, NULL, GL_STREAM_DRAW));
-  GL3(gl3_glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2*curind, gl3_inds));
-  GL3(gl3_glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), NULL, GL_STREAM_DRAW));
-  GL3(gl3_glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(gl3_block_t), &gl3_shaderdata));
+  OrphanBuffer(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), sizeof(gl3_block_t), &gl3_shaderdata);
 
-  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_LINE].program));
-  GL3(glDrawElements(GL_LINES, curind, GL_UNSIGNED_SHORT, NULL));
+  OrphanBuffer(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount,
+               sizeof(gl3_vert_t)*curvert, gl3_verts);
+  if (curind) OrphanBuffer(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount, 2*curind, gl3_inds);
 
+  switch (curbuf) {
+  case GL3_BUF_LINES:
+    lprintf(LO_DEBUG, "gl3_FlushBuffers: Drawing line batch\n");
+
+    GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_LINE].program));
+    GL3(glDrawArrays(GL_LINES, 0, curvert));
+    break;
+  case GL3_BUF_PATCHES:
+    lprintf(LO_DEBUG, "gl3_FlushBuffers: Drawing patch batch\n");
+
+    GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
+    GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
+    break;
+
+  default: lprintf(LO_WARN, "gl3_FlushBuffers: Unknown buffer active!? (%d)\n", curbuf); return;
+  }
+
+  // Reset buffer
   curvert = curind = 0;
-}
-
-// Draw buffer, for patches
-void gl3_DrawPatchBuffer(void) {
-  // Orphan buffers
-  GL3(gl3_glBufferData(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount, NULL, GL_STREAM_DRAW));
-  GL3(gl3_glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(gl3_vert_t)*curvert, gl3_verts));
-  GL3(gl3_glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount, NULL, GL_STREAM_DRAW));
-  GL3(gl3_glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2*curind, gl3_inds));
-  GL3(gl3_glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), NULL, GL_STREAM_DRAW));
-  GL3(gl3_glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(gl3_block_t), &gl3_shaderdata));
-
-  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
-  GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
-
-  curvert = curind = 0; // Make sure to reset buffer points
+  curbuf = GL3_BUF_NONE;
 }
 
 void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
-                  const unsigned short *inds, size_t indcnt)
+                  const unsigned short *inds, size_t indcnt,
+                  gl3_buffer_t buf)
 {
   size_t i;
 
-  if (curvert+vertcnt > gl3_vertcount) I_Error("gl3_AddVerts: Vertex buffer overflow!\n");
-  if (curind+indcnt > gl3_indcount) I_Error("gl3_AddVerts: Index buffer overflow!\n");
+  if (buf != curbuf) {
+    gl3_FlushBuffers();
+    curbuf = buf;
+  }
+
+  if (curvert+vertcnt > gl3_vertcount) {
+    const size_t oldverts = gl3_vertcount;
+
+    // Resize vertex buffer
+    while (curvert+vertcnt > gl3_vertcount) gl3_vertcount *= 2;
+    gl3_verts = Z_Realloc(gl3_verts, sizeof(gl3_vert_t)*gl3_vertcount, PU_STATIC, NULL);
+
+    lprintf(LO_WARN, "gl3_AddVerts: Resized vertex buffer from %u to %u\n",
+            (unsigned)oldverts, (unsigned)gl3_vertcount);
+  }
+  if (curind+indcnt > gl3_indcount) {
+    const size_t oldinds = gl3_indcount;
+
+    // Resize index buffer
+    while (curind+indcnt > gl3_indcount) gl3_indcount *= 2;
+    gl3_inds = Z_Realloc(gl3_inds, 2*gl3_indcount, PU_STATIC, NULL);
+
+    lprintf(LO_WARN, "gl3_AddVerts: Resized index buffer from %u to %u\n",
+            (unsigned)oldinds, (unsigned)gl3_indcount);
+  }
 
   memcpy(gl3_verts + curvert, verts, sizeof(gl3_vert_t)*vertcnt);
 

@@ -40,7 +40,6 @@
 
 #ifdef GL_DOOM
 #include "gl_opengl.h"
-#include "gl3_buffer.h"
 #endif
 
 #include "doomstat.h"
@@ -2588,7 +2587,9 @@ static void AM_setFrameVariables(void)
     am_frame.bbox[BOXTOP] = m_y2;
   }
 
-  am_frame.precise = V_GLActive();
+  // The OpenGL3 renderer attempts to emulate how
+  // the software renderer would draw the automap
+  am_frame.precise = V_LegacyGLActive();
 }
 
 //
@@ -2653,10 +2654,6 @@ void AM_Drawer (void)
       gld_DrawNiceThings(f_x, f_y, f_w, f_h);
     }
 #endif
-  }
-  else if (V_GL3Active())
-  {
-    gl3_DrawLineBuffer();
   }
 #endif
 

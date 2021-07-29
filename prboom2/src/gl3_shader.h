@@ -21,12 +21,12 @@
 #include "gl3_main.h"
 
 // Shader types
-enum {
+typedef enum gl3_shaderid_e {
   GL3_SHADER_LINE = 0,
   GL3_SHADER_PATCH,
 
   GL3_SHADER_COUNT
-};
+} gl3_shaderid_t;
 
 // OpenGL shader
 typedef struct gl3_shader_s {

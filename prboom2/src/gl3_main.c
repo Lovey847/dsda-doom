@@ -180,11 +180,12 @@ void gl3_Init(int width, int height) {
 }
 
 void gl3_Start(void) {
+  lprintf(LO_DEBUG, "gl3_Start: Frame start\n\n");
   GL3(glClear(GL_COLOR_BUFFER_BIT));
 }
 
 void gl3_Finish(void) {
-  gl3_DrawPatchBuffer(); // TODO: Find better place to put this!
+  gl3_FlushBuffers();
   SDL_GL_SwapWindow(sdl_window);
 }
 
