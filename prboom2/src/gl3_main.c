@@ -23,6 +23,7 @@
 #include "lprintf.h"
 #include "i_video.h"
 #include "w_wad.h"
+#include "dsda/palette.h"
 
 // OpenGL debug message callback
 #ifndef NDEBUG
@@ -198,7 +199,32 @@ void gl3_SetPalette(int palette) {
 }
 
 void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color) {
+  gl3_vert_t verts[4] = {};
+  const float two_over_width = 2.f/SCREENWIDTH;
+  const float negative_two_over_height = -2.f/SCREENHEIGHT;
+  dsda_playpal_t *ppd = dsda_PlayPalData();
 
+  float xx = (float)x*two_over_width - 1.f;
+  float yy = (float)y*negative_two_over_height + 1.f;
+  float ex = xx + (float)width*two_over_width;
+  float ey = yy + (float)height*negative_two_over_height;
+
+  verts[0].x = xx;
+  verts[0].y = yy;
+
+  verts[1].x = ex;
+  verts[1].y = yy;
+
+  verts[2].x = xx;
+  verts[2].y = ey;
+
+  verts[3].x = ex;
+  verts[3].y = ey;
+
+  if (color == ppd->transparent) color = ppd->duplicate;
+  verts[2].imgcoord = gl3_ColCoord(color);
+
+  gl3_AddQuad(verts);
 }
 
 void gl3_DrawBackground(const char *flatname, int n) {
@@ -242,11 +268,11 @@ void gl3_DrawNumPatchPrecise(float x, float y, int scrn, int lump, int cm,
 }
 
 void gl3_PlotPixel(int scrn, int x, int y, byte color) {
-
+  gl3_FillRect(scrn, x, y, 1, 1, color);
 }
 
 void gl3_PlotPixelWu(int scr, int x, int y, byte color, int weight) {
-
+  gl3_PlotPixel(scr, x, y, color);
 }
 
 void gl3_DrawLine(fline_t *fl, int color) {

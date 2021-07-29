@@ -47,6 +47,7 @@ typedef void (*rect_renderFunc_t)(struct rect_s *r);
 static void RenderPatch(struct rect_s *r);
 static void RenderTexture(struct rect_s *r);
 static void RenderFlat(struct rect_s *r);
+static void RenderCols(struct rect_s *r);
 
 typedef struct rect_s {
   gl3_img_t *img; // Image this rectangle refers to
@@ -76,6 +77,9 @@ typedef struct rect_s {
 
 // Maximum texture page size, don't just use gl3_GL_MAX_TEXTURE_SIZE
 static int maxpagewidth = 0, maxpageheight = 0;
+
+// Position of palette texture in texture page
+static gl3_texcoord_t palcoord;
 
 // Add patch
 static void AddPatch(rect_t *r, int plump) {
@@ -113,6 +117,15 @@ static void AddFlat(rect_t *r, int flump) {
 
   // Pad around flat
   r->width = r->height = 66;
+}
+
+// Add palette (for color primitives, like rects and lines)
+// Each color is 2x2, coordinate is in the middle of the color
+static void AddCols(rect_t *r) {
+  r->render = RenderCols;
+
+  r->width = 512;
+  r->height = 2;
 }
 
 // Non-recursive rectangle quicksort routine
@@ -434,6 +447,31 @@ static void RenderFlat(struct rect_s *r) {
 
   r->img->leftoffset = r->img->topoffset = 0;
   r->img->width = r->img->height = 64;
+}
+
+// Render palette into texture page
+static void RenderCols(struct rect_s *r) {
+  byte *out, *i;
+  byte val;
+
+  out = Z_Malloc(512*2, PU_STATIC, NULL);
+
+  for (i = out+510, val = 255; i >= out; i -= 2, --val) {
+    i[0] = i[1] = i[512] = i[513] = val;
+  }
+
+  // PackRects "removes padding" by adding 1 to the x and y coordinate
+  // and subtracting the width and height by 2.
+  // Get to the top left of the rect
+  GL3(glTexSubImage2D(GL_TEXTURE_2D, 0,
+                      r->x-1, r->y-1, 512, 2,
+                      GL_RED_INTEGER, GL_UNSIGNED_BYTE, out));
+
+  Z_Free(out);
+
+  // Setup palcoord
+  palcoord.x = r->x;
+  palcoord.y = r->y;
 }
 
 // Render all rectangles into texture page
@@ -762,6 +800,9 @@ static void gl3_InitPage(void) {
     AddFlat(rect++, lump);
   }
 
+  // Add palette texture
+  AddCols(rect++);
+
   // Pack rectangles
   PackRects(rectbuf, rect-rectbuf);
 
@@ -865,4 +906,10 @@ const gl3_img_t *gl3_GetPatch(int lump) {
 const gl3_img_t *gl3_GetWall(int id) {
   if (id >= numtextures) return NULL;
   return gl3_teximg[id];
+}
+
+gl3_texcoord_t gl3_ColCoord(byte col) {
+  gl3_texcoord_t ret = palcoord;
+  ret.x += col*2;
+  return ret;
 }

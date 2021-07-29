@@ -79,4 +79,7 @@ static INLINE const gl3_img_t *gl3_GetFlat(int lump) {
   return gl3_GetPatch(lump+firstflat);
 }
 
+// Get color position in texture page
+gl3_texcoord_t gl3_ColCoord(byte col);
+
 #endif //_GL3_TEXTURE_H
