@@ -22,7 +22,8 @@
 
 // Shader types
 enum {
-  GL3_SHADER_PATCH = 0,
+  GL3_SHADER_LINE = 0,
+  GL3_SHADER_PATCH,
 
   GL3_SHADER_COUNT
 };
@@ -35,8 +36,6 @@ typedef struct gl3_shader_s {
 // Uniform block used in shaders
 typedef struct gl3_block_s {
   GLuint palTimesTransTables; // pal * (CR_LIMIT+1)
-  GLfloat width; // Wide screen width
-  GLfloat height; // Wide screen height
 } gl3_block_t;
 
 // Shaders

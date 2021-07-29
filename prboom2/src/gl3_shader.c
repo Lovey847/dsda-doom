@@ -31,7 +31,42 @@
   "#define PFLAG_TRANSMASK 15u\n"\
   #__VA_ARGS__
 
-static const char vertexShader[] = SHADERSRC(
+static const char lvShaderCode[] = SHADERSRC(
+  layout(location = LOC_INVERT) in vec3 invert;
+  layout(location = LOC_INFLAGS) in uint incol;
+
+  layout(std140) uniform shaderdata_t {
+    // Palette, premultiplied by number of translation tables
+    uint palTimesTransTables;
+  } shaderdata;
+
+  flat out uint col;
+  flat out uint palTimesTransTables;
+
+  void main() {
+    gl_Position = vec4(invert.xy, 0.0, 1.0);
+
+    col = incol;
+    palTimesTransTables = shaderdata.palTimesTransTables;
+  }
+
+  );
+
+static const char lfShaderCode[] = SHADERSRC(
+  flat in uint col;
+  flat in uint palTimesTransTables;
+
+  uniform sampler3D pal;
+
+  out vec4 fragcolor;
+
+  void main() {
+    fragcolor = texelFetch(pal, ivec3(col, 0, palTimesTransTables), 0);
+  }
+
+  );
+
+static const char pvShaderCode[] = SHADERSRC(
   layout(location = LOC_INVERT) in vec3 invert;
   layout(location = LOC_INIMGCOORD) in ivec2 inimgcoord;
   layout(location = LOC_INIMGSIZE) in ivec2 inimgsize;
@@ -39,11 +74,8 @@ static const char vertexShader[] = SHADERSRC(
   layout(location = LOC_INFLAGS) in uint inflags;
 
   layout(std140) uniform shaderdata_t {
-    // Palette, premultiplied by nuber of translation tables
+    // Palette, premultiplied by number of translation tables
     uint palTimesTransTables;
-
-    float width; // Wide screen width
-    float height; // Wide screen height
   } shaderdata;
 
   flat out ivec2 imgcoord;
@@ -64,7 +96,7 @@ static const char vertexShader[] = SHADERSRC(
 
   );
 
-static const char fragmentShader[] = SHADERSRC(
+static const char pfShaderCode[] = SHADERSRC(
   flat in ivec2 imgcoord;
   flat in ivec2 imgsize;
   noperspective in vec2 coord;
@@ -159,13 +191,21 @@ gl3_shader_t gl3_shaders[GL3_SHADER_COUNT];
 void gl3_InitShaders(void) {
   GLint u;
 
-  gl3_shaders[GL3_SHADER_PATCH].program = CreateProgram(vertexShader, fragmentShader);
+  gl3_shaders[GL3_SHADER_LINE].program = CreateProgram(lvShaderCode, lfShaderCode);
+
+  // Set shader uniforms
+//GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_LINE].program));
+
+//u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_LINE].program, "pal"));
+//GL3(gl3_glUniform1i(u, 0));
+
+  gl3_shaders[GL3_SHADER_PATCH].program = CreateProgram(pvShaderCode, pfShaderCode);
 
   // Set shader uniforms
   GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
 
-  u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "pal"));
-  GL3(gl3_glUniform1i(u, 0));
+//u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "pal"));
+//GL3(gl3_glUniform1i(u, 0));
 
   u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "tex"));
   GL3(gl3_glUniform1i(u, 1));

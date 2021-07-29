@@ -174,15 +174,9 @@ void gl3_Init(int width, int height) {
   // Create buffers
   gl3_InitBuffers(2048, 3072);
 
-  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
-
   // Enable alpha blending
   GL3(glEnable(GL_BLEND));
   GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-
-  // Set screen size
-  gl3_shaderdata.width = (float)video_stretch.width;
-  gl3_shaderdata.height = (float)video_stretch.height;
 }
 
 void gl3_Start(void) {
@@ -190,7 +184,7 @@ void gl3_Start(void) {
 }
 
 void gl3_Finish(void) {
-  gl3_DrawBuffers();
+  gl3_DrawPatchBuffer(); // TODO: Find better place to put this!
   SDL_GL_SwapWindow(sdl_window);
 }
 
@@ -276,7 +270,50 @@ void gl3_PlotPixelWu(int scr, int x, int y, byte color, int weight) {
 }
 
 void gl3_DrawLine(fline_t *fl, int color) {
+  const float two_over_width = 2.f/(float)SCREENWIDTH;
+  const float negative_two_over_height = -2.f/(float)SCREENHEIGHT;
 
+  gl3_vert_t verts[2] = {};
+  float sx, sy, ex, ey;
+  float castx, casty;
+
+  // Round pixel positions
+  // Using non-float coordinates.
+  sx = (float)fl->a.x+0.5f;
+  sy = (float)fl->a.y+0.5f;
+  ex = (float)fl->b.x+0.5f;
+  ey = (float)fl->b.y+0.5f;
+
+  // Cast ex and ey to next pixel
+  if (fabs(sx-ex) > fabs(sy-ey)) {
+    if (sx < ex) castx = 1.f;
+    else castx = -1.f;
+
+    casty = (ey-sy)/fabs(sx-ex);
+  } else {
+    castx = (ex-sx)/fabs(sy-ey);
+
+    if (sy < ey) casty = 1.f;
+    else casty = -1.f;
+  }
+
+  ex += castx;
+  ey += casty;
+
+  sx = sx*two_over_width-1.f;
+  sy = sy*negative_two_over_height+1.f;
+  ex = ex*two_over_width-1.f;
+  ey = ey*negative_two_over_height+1.f;
+
+  verts[0].x = sx;
+  verts[0].y = sy;
+
+  verts[1].x = ex;
+  verts[1].y = ey;
+
+  verts[1].flags = color;
+
+  gl3_AddLine(verts);
 }
 
 void gl3_wipe_doMelt(int *y_lookup) {

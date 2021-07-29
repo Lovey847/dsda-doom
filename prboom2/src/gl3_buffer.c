@@ -74,8 +74,8 @@ static GLuint vao, vbo, ebo, ubo;
 static size_t curvert = 0, curind = 0;
 
 // Raw buffers
-gl3_vert_t *gl3_verts;
-unsigned short *gl3_inds;
+static gl3_vert_t *gl3_verts;
+static unsigned short *gl3_inds;
 
 // Maximum buffer sizes
 size_t gl3_vertcount;
@@ -122,7 +122,8 @@ void gl3_DeleteBuffers(void) {
   gl3_indcount = 0;
 }
 
-void gl3_DrawBuffers(void) {
+// Draw buffer for lines
+void gl3_DrawLineBuffer(void) {
   // Orphan buffers
   GL3(gl3_glBufferData(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount, NULL, GL_STREAM_DRAW));
   GL3(gl3_glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(gl3_vert_t)*curvert, gl3_verts));
@@ -131,6 +132,23 @@ void gl3_DrawBuffers(void) {
   GL3(gl3_glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), NULL, GL_STREAM_DRAW));
   GL3(gl3_glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(gl3_block_t), &gl3_shaderdata));
 
+  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_LINE].program));
+  GL3(glDrawElements(GL_LINES, curind, GL_UNSIGNED_SHORT, NULL));
+
+  curvert = curind = 0;
+}
+
+// Draw buffer, for patches
+void gl3_DrawPatchBuffer(void) {
+  // Orphan buffers
+  GL3(gl3_glBufferData(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount, NULL, GL_STREAM_DRAW));
+  GL3(gl3_glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(gl3_vert_t)*curvert, gl3_verts));
+  GL3(gl3_glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount, NULL, GL_STREAM_DRAW));
+  GL3(gl3_glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2*curind, gl3_inds));
+  GL3(gl3_glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), NULL, GL_STREAM_DRAW));
+  GL3(gl3_glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(gl3_block_t), &gl3_shaderdata));
+
+  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
   GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
 
   curvert = curind = 0; // Make sure to reset buffer points
