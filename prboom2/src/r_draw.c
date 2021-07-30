@@ -819,11 +819,29 @@ void R_FillBackScreen (void)
   if (scaledviewwidth == SCREENWIDTH)
     return;
 
-  V_FillFlat(grnrock.lumpnum, 1, 0, 0, SCREENWIDTH, SCREENHEIGHT, VPT_NONE);
+  // lovey 7/29/2021: For OpenGL3, we wanna draw around the view
+  // since R_DrawViewBorder isn't gonna handle that for us
+  // Probably wanna do this for normal GL as well.
+  if (V_GL3Active()) {
+    int top, side;
+
+    top = ((SCREENHEIGHT-ST_SCALED_HEIGHT)-viewheight)/2;
+    side = (SCREENWIDTH-scaledviewwidth)/2;
+
+    // TODO: It'll be a while until then, but I really wanna make this look better.
+    V_FillFlat(grnrock.lumpnum, 0, 0, 0, SCREENWIDTH, top, VPT_NONE);
+    V_FillFlat(grnrock.lumpnum, 0, 0, 0, side, SCREENHEIGHT, VPT_NONE);
+    V_FillFlat(grnrock.lumpnum, 0, SCREENWIDTH-side, top, side, SCREENHEIGHT-top, VPT_NONE);
+    V_FillFlat(grnrock.lumpnum, 0, side, top+viewheight, SCREENWIDTH - side*2, SCREENHEIGHT-top-viewheight, VPT_NONE);
+  } else
+    V_FillFlat(grnrock.lumpnum, 1, 0, 0, SCREENWIDTH, SCREENHEIGHT, VPT_NONE);
 
   // line between view and status bar
+  // lovey 7/29/2021: Should the automap even be considered here?
+  // For now I'll only disable it on OpenGL3, but it creates issues
+  // for 32bit AND OpenGL
   if ((ratio_multiplier != ratio_scale || wide_offsety) &&
-      (automap || scaledviewwidth == SCREENWIDTH))
+      ((!V_GL3Active() && automap) || scaledviewwidth == SCREENWIDTH))
   {
     V_FillPatch(brdr_b.lumpnum, 1, 0, SCREENHEIGHT - ST_SCALED_HEIGHT, SCREENWIDTH, brdr_b.height, VPT_NONE);
   }
