@@ -1040,7 +1040,7 @@ static void R_SetupFrame (player_t *player)
 
   R_SetClipPlanes();
 
-  if (V_GLActive() || hudadd_crosshair)
+  if (V_LegacyGLActive() || hudadd_crosshair)
     R_SetupMatrix();
 
   validcount++;

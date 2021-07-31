@@ -19,8 +19,10 @@
 #define _GL3_MAIN_H
 
 #include "gl3_opengl.h"
+
 #include "v_video.h"
 #include "lprintf.h"
+#include "r_defs.h"
 
 static const char *gl3_strerror(int errorCode) {
   switch (errorCode) {
@@ -91,5 +93,8 @@ void gl3_wipe_doMelt(int *y_lookup);
 void gl3_wipe_exitMelt(int ticks);
 void gl3_wipe_StartScreen(void);
 void gl3_wipe_EndScreen(void);
+
+// BSP tree operations
+void gl3_bsp_AddLine(seg_t *line);
 
 #endif //_GL3_MAIN_H

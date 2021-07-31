@@ -423,7 +423,7 @@ static void R_AddLine (seg_t *line)
 
     return;
   } else if (V_GL3Active()) {
-    // TODO: Add something here!!!
+    gl3_bsp_AddLine(line);
     return;
   }
 #endif

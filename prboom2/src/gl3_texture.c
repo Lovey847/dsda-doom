@@ -637,6 +637,20 @@ static void gl3_InitPal(void) {
 }
 
 static void gl3_InitPage(void) {
+  // lovey 7/30/2021 NOTE: I can write patch verification routines, to determine if a certain
+  // lump is actually a patch, then go through all lumps and add them, but there
+  // are a few caveats:
+  //   I don't wanna add any patches in the PNAMES lump, so I'd have to
+  //   check for every patch if it's in PNAMES, which can take a while
+  //   depending on how many patches there are
+  //
+  //   Even then I get a few duplicate patches in PWADS that overwrite
+  //   lumps like HELP1, CREDIT, TITLEPIC, etc., which I may still be
+  //   able to detect, but that's just MORE preprocessing.
+  //
+  // In general, I decided against it because it takes too much time on
+  // startup.
+
   // Load all patches, textures, flats, etc. into the texture pages
   // Unidentifiable patch list
   static const char * const patchlist[] = {
@@ -841,7 +855,7 @@ static void gl3_InitPage(void) {
     for (i = 0; i < sizeof(patchlist)/sizeof(patchlist[0]); ++i)
       for (j = i; j < sizeof(patchlist)/sizeof(patchlist[0]); ++j)
         if (!strcmp(patchlist[i], patchlist[j]) && (i != j))
-          lprintf(LO_INFO, "%d and %d are %s!\n", (int)i, (int)j, patchlist[i]);
+          lprintf(LO_WARN, "gl3_InitPage: %d and %d are %s!\n", (int)i, (int)j, patchlist[i]);
   }
 
   // DEBUG: Output texture page
@@ -872,7 +886,6 @@ static void gl3_InitPage(void) {
 
     Z_Free(out);
   }
-
 }
 
 void gl3_InitTextures(void) {

@@ -23,6 +23,8 @@
 #include "lprintf.h"
 #include "i_video.h"
 #include "w_wad.h"
+#include "doomstat.h"
+#include "r_main.h"
 #include "dsda/palette.h"
 
 // OpenGL debug message callback
@@ -100,7 +102,7 @@ static void ReportInvalidPatch(int lump) {
     if (invalidpatches[i] == lump) return;
 
   invalidpatches[invalidpatchcount++] = lump;
-  lprintf(LO_INFO, "ReportInvalidPatch: Invalid patch %d!\n", lump);
+  lprintf(LO_WARN, "ReportInvalidPatch: Invalid patch %d!\n", lump);
 }
 
 static INLINE void ReportInvalidFlat(int flat) {
@@ -328,4 +330,11 @@ void gl3_wipe_StartScreen(void) {
 }
 
 void gl3_wipe_EndScreen(void) {
+}
+
+void gl3_bsp_AddLine(seg_t *line) {
+  // Render from the players POV
+  mobj_t *p = players[displayplayer].mo;
+
+  gl3_DrawWall(line, p);
 }
