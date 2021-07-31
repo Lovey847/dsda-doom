@@ -22,6 +22,9 @@
 
 #include "r_defs.h"
 
+// Start rendering player view from viewpoint
+void gl3_StartPlayerView(mobj_t *player);
+
 // Draw wall from player's POV
 void gl3_DrawWall(seg_t *line, mobj_t *player);
 

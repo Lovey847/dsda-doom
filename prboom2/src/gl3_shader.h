@@ -24,6 +24,7 @@
 typedef enum gl3_shaderid_e {
   GL3_SHADER_LINE = 0,
   GL3_SHADER_PATCH,
+  GL3_SHADER_WALL,
 
   GL3_SHADER_COUNT
 } gl3_shaderid_t;
@@ -34,7 +35,15 @@ typedef struct gl3_shader_s {
 } gl3_shader_t;
 
 // Uniform block used in shaders
+// NOTE: You must change the block in shaders if you change it here!
 typedef struct gl3_block_s {
+  // Column-major matrices
+  // Just pretend projmat[0][0] is column0 row0, and
+  // projmat[1][0] is column1 row0
+  // Keep in mind how this effects memcpy'ing these
+  // arrays
+  GLfloat projmat[4][4], transmat[4][4], rotmat[4][4];
+
   GLuint palTimesTransTables; // pal * (CR_LIMIT+1)
 } gl3_block_t;
 

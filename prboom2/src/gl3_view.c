@@ -23,9 +23,44 @@
 
 #include <math.h>
 
-void gl3_DrawWall(seg_t *line, mobj_t *player) {
-  static const float invFrac = 1.f/(float)FRACUNIT;
+static const float invFrac = 1.f/(float)FRACUNIT;
 
+// TODO: I don't wanna set these matrices when rendering begins,
+// I wanna set these matrices right before flushing the buffers!
+void gl3_StartPlayerView(mobj_t *player) {
+  // Player angle in radians
+  // Kinda hard to get considering how huge the number can be
+  double dir;
+
+  // Kinda cool you can do this in one multiply
+  dir = (double)player->angle*(2.0/4294967296.0*3.14159265358979323846);
+
+  // Set transformation matrices
+  memset(gl3_shaderdata.projmat, 0, sizeof(gl3_shaderdata.projmat));
+  gl3_shaderdata.projmat[3][1] = (float)(SCREENHEIGHT/2-viewwindowy-viewheight/2)/(float)SCREENHEIGHT;
+  gl3_shaderdata.projmat[0][0] = (float)scaledviewwidth/(float)(SCREENWIDTH*SCREENWIDTH);
+  gl3_shaderdata.projmat[1][1] = gl3_shaderdata.projmat[0][0] * (float)SCREENWIDTH/(float)SCREENHEIGHT;
+  gl3_shaderdata.projmat[2][2] = 1.f;
+  gl3_shaderdata.projmat[3][3] = 1.f;
+
+  memset(gl3_shaderdata.transmat, 0, sizeof(gl3_shaderdata.transmat));
+  gl3_shaderdata.transmat[3][0] = -(float)player->x*invFrac;
+  gl3_shaderdata.transmat[3][1] = -(float)player->y*invFrac;
+  gl3_shaderdata.transmat[0][0] = 1.f;
+  gl3_shaderdata.transmat[1][1] = 1.f;
+  gl3_shaderdata.transmat[2][2] = 1.f;
+  gl3_shaderdata.transmat[3][3] = 1.f;
+
+  memset(gl3_shaderdata.rotmat, 0, sizeof(gl3_shaderdata.rotmat));
+  gl3_shaderdata.rotmat[0][0] = cos(dir);
+  gl3_shaderdata.rotmat[1][0] = sin(dir);
+  gl3_shaderdata.rotmat[0][1] = -sin(dir);
+  gl3_shaderdata.rotmat[1][1] = cos(dir);
+  gl3_shaderdata.rotmat[2][2] = 1.f;
+  gl3_shaderdata.rotmat[3][3] = 1.f;
+}
+
+void gl3_DrawWall(seg_t *line, mobj_t *player) {
   // Quad vertices
   gl3_vert_t verts[4];
 
@@ -34,7 +69,7 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   line_t *l = line->linedef;
   side_t *s = line->sidedef;
   const gl3_img_t *img = gl3_GetWall(s->midtexture);
-  float x1, y1, x2, y2, x3, y3, x4, y4;
+  float x1, y1, x2, y2;
   union {
     float f;
     unsigned i;
@@ -45,27 +80,22 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   x2 = (float)line->v2->x*invFrac;
   y2 = (float)line->v2->y*invFrac;
 
-  // Get relative line position
-  x1 -= (float)player->x*invFrac;
-  y1 -= (float)player->y*invFrac;
-  x2 -= (float)player->x*invFrac;
-  y2 -= (float)player->y*invFrac;
+  verts[0].x = x1;
+  verts[0].y = y1;
+  verts[0].z = 0.f;
+  verts[0].coord.x = 0;
+  verts[0].coord.y = 0;
 
-  // Compute direction difference
-  // This assumes it's in ieee754 float format
-  dir.i = 0x3f800000 | (player->angle>>9);
-  dir.f = (dir.f-1.f)*(3.14159265358979323f*2.f);
+  verts[1].x = x2;
+  verts[1].y = y2;
+  verts[1].z = 0.f;
+  verts[1].coord.x = img->width;
+  verts[1].coord.y = 0;
 
-  x3 = x1*cosf(dir.f) + y1*sinf(dir.f);
-  y3 = x1*-sinf(dir.f) + y1*cosf(dir.f);
-  x4 = x2*cosf(dir.f) + y2*sinf(dir.f);
-  y4 = x2*-sinf(dir.f) + y2*cosf(dir.f);
+  verts[1].imgcoord = img->tl;
+  verts[1].imgsize.x = img->width;
+  verts[1].imgsize.y = img->height;
+  verts[1].flags = 0; // No flags
 
-  verts[0].x = x3*(float)scaledviewwidth/(float)(SCREENWIDTH*SCREENWIDTH);
-  verts[1].x = x4*(float)scaledviewwidth/(float)(SCREENWIDTH*SCREENWIDTH);
-  verts[0].y = y3*(float)scaledviewwidth/(float)(SCREENWIDTH*SCREENWIDTH)*(float)SCREENWIDTH/(float)SCREENHEIGHT - (float)(viewwindowy+viewheight/2-SCREENHEIGHT/2)/(float)SCREENHEIGHT;
-  verts[1].y = y4*(float)scaledviewwidth/(float)(SCREENWIDTH*SCREENWIDTH)*(float)SCREENWIDTH/(float)SCREENHEIGHT - (float)(viewwindowy+viewheight/2-SCREENHEIGHT/2)/(float)SCREENHEIGHT;
-  verts[1].flags = 208;
-
-  gl3_AddLine(verts);
+  gl3_AddVerts(verts, 2, NULL, 0, GL3_BUF_WALLS);
 }

@@ -155,6 +155,12 @@ void gl3_FlushBuffers(void) {
     GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
     GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
     break;
+  case GL3_BUF_WALLS:
+    lprintf(LO_DEBUG, "gl3_FlushBuffers: Drawing wall batch\n");
+
+    GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_WALL].program));
+    GL3(glDrawArrays(GL_LINES, 0, curvert));
+    break;
 
   default: lprintf(LO_WARN, "gl3_FlushBuffers: Unknown buffer active!? (%d)\n", curbuf); return;
   }

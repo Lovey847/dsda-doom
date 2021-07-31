@@ -36,6 +36,9 @@ static const char lvShaderCode[] = SHADERSRC(
   layout(location = LOC_INFLAGS) in uint incol;
 
   layout(std140) uniform shaderdata_t {
+    // Camera matrices
+    mat4 projmat, transmat, rotmat;
+
     // Palette, premultiplied by number of translation tables
     uint palTimesTransTables;
   } shaderdata;
@@ -74,6 +77,9 @@ static const char pvShaderCode[] = SHADERSRC(
   layout(location = LOC_INFLAGS) in uint inflags;
 
   layout(std140) uniform shaderdata_t {
+    // Camera matrices
+    mat4 projmat, transmat, rotmat;
+
     // Palette, premultiplied by number of translation tables
     uint palTimesTransTables;
   } shaderdata;
@@ -112,6 +118,58 @@ static const char pfShaderCode[] = SHADERSRC(
     ivec2 c = ivec2(mod(coord, vec2(imgsize))) + imgcoord;
     uint ind = texelFetch(tex, c, 0).r;
     fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables+(flags&PFLAG_TRANSMASK)), 0);
+  }
+
+  );
+
+static const char wvShaderCode[] = SHADERSRC(
+  layout(location = LOC_INVERT) in vec3 invert;
+  layout(location = LOC_INIMGCOORD) in ivec2 inimgcoord;
+  layout(location = LOC_INIMGSIZE) in ivec2 inimgsize;
+  layout(location = LOC_INCOORD) in vec2 incoord;
+  layout(location = LOC_INFLAGS) in uint inflags;
+
+  layout(std140) uniform shaderdata_t {
+    // Camera matrices
+    mat4 projmat, transmat, rotmat;
+
+    uint palTimesTransTables;
+  } shaderdata;
+
+  flat out ivec2 imgcoord;
+  flat out ivec2 imgsize;
+  out vec2 coord;
+  flat out uint flags;
+  flat out uint palTimesTransTables;
+
+  void main() {
+    gl_Position = shaderdata.projmat*shaderdata.rotmat*shaderdata.transmat * vec4(invert, 1.0);
+
+    imgcoord = inimgcoord;
+    imgsize = inimgsize;
+    coord = incoord;
+    flags = inflags;
+    palTimesTransTables = shaderdata.palTimesTransTables;
+  }
+
+  );
+
+static const char wfShaderCode[] = SHADERSRC(
+  flat in ivec2 imgcoord;
+  flat in ivec2 imgsize;
+  in vec2 coord;
+  flat in uint flags;
+  flat in uint palTimesTransTables;
+
+  uniform usampler2D tex;
+  uniform sampler3D pal;
+
+  out vec4 fragcolor;
+
+  void main() {
+    ivec2 c = ivec2(mod(coord, vec2(imgsize))) + imgcoord;
+    uint ind = texelFetch(tex, c, 0).r;
+    fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables), 0);
   }
 
   );
@@ -208,6 +266,17 @@ void gl3_InitShaders(void) {
 //GL3(gl3_glUniform1i(u, 0));
 
   u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_PATCH].program, "tex"));
+  GL3(gl3_glUniform1i(u, 1));
+
+  gl3_shaders[GL3_SHADER_WALL].program = CreateProgram(wvShaderCode, wfShaderCode);
+
+  // Set shader uniforms
+  GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_WALL].program));
+
+  u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_WALL].program, "pal"));
+  GL3(gl3_glUniform1i(u, 0));
+
+  u = GL3(gl3_glGetUniformLocation(gl3_shaders[GL3_SHADER_WALL].program, "tex"));
   GL3(gl3_glUniform1i(u, 1));
 
   I_AtExit(gl3_DeleteShaders, true);

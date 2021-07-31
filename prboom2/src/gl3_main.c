@@ -19,6 +19,7 @@
 #include "gl3_texture.h"
 #include "gl3_shader.h"
 #include "gl3_buffer.h"
+#include "gl3_view.h"
 
 #include "lprintf.h"
 #include "i_video.h"
@@ -117,7 +118,13 @@ int gl3_GL_MAX_TEXTURE_SIZE;
 int gl3_GL_MAX_3D_TEXTURE_SIZE;
 int gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT;
 
-// TODO: Implement error checking!
+static const GLfloat mat[4][4] = {
+  {1.f, 0.f, 0.f, 0.f},
+  {0.f, 1.f, 0.f, 0.f},
+  {0.f, 0.f, 1.f, 0.f},
+  {0.f, 0.f, 0.f, 1.f}
+};
+
 void gl3_Init(int width, int height) {
   const char *vendor, *renderer, *version, *glslVer;
   int i;
@@ -179,6 +186,11 @@ void gl3_Init(int width, int height) {
   // Enable alpha blending
   GL3(glEnable(GL_BLEND));
   GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
+  // Initialize matrices
+  memcpy(gl3_shaderdata.projmat, mat, sizeof(mat));
+  memcpy(gl3_shaderdata.rotmat, mat, sizeof(mat));
+  memcpy(gl3_shaderdata.transmat, mat, sizeof(mat));
 }
 
 void gl3_Start(void) {

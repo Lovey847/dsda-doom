@@ -26,6 +26,7 @@
 typedef enum gl3_buffer_e {
   GL3_BUF_LINES = 0,
   GL3_BUF_PATCHES,
+  GL3_BUF_WALLS,
 
   GL3_BUF_COUNT,
 
@@ -57,7 +58,6 @@ typedef struct gl3_vert_s {
   gl3_texcoord_t imgcoord, imgsize, coord;
   unsigned int flags;
 } gl3_vert_t;
-
 
 // Uniform buffer
 extern gl3_block_t gl3_shaderdata;
