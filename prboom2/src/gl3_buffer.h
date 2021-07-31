@@ -72,8 +72,8 @@ void gl3_DeleteBuffers(void);
 void gl3_FlushBuffers(void);
 
 // Add vertices to buffer
-// Will automatically flush if buf isn't the
-// current buffer
+// Will automatically flush current buffer if buf is not
+// the current buffer
 void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
                   const unsigned short *inds, size_t indcnt,
                   gl3_buffer_t buf);
@@ -83,16 +83,16 @@ static INLINE void gl3_AddLine(const gl3_vert_t verts[2]) {
   gl3_AddVerts(verts, 2, NULL, 0, GL3_BUF_LINES);
 }
 
-// Add triangle to patch buffer
+// Add triangle to buffer
 static const unsigned short gl3_triangleInds[3] = {0, 1, 2};
-static INLINE void gl3_AddTriangle(const gl3_vert_t verts[3]) {
-  gl3_AddVerts(verts, 3, gl3_triangleInds, 3, GL3_BUF_PATCHES);
+static INLINE void gl3_AddTriangle(const gl3_vert_t verts[3], gl3_buffer_t buf) {
+  gl3_AddVerts(verts, 3, gl3_triangleInds, 3, buf);
 }
 
-// Add quad to patch buffer
+// Add quad to buffer
 static const unsigned short gl3_quadInds[6] = {0, 1, 2, 3, 1, 2};
-static INLINE void gl3_AddQuad(const gl3_vert_t verts[4]) {
-  gl3_AddVerts(verts, 4, gl3_quadInds, 6, GL3_BUF_PATCHES);
+static INLINE void gl3_AddQuad(const gl3_vert_t verts[4], gl3_buffer_t buf) {
+  gl3_AddVerts(verts, 4, gl3_quadInds, 6, buf);
 }
 
 // Add image to patch buffer

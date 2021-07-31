@@ -16,9 +16,11 @@
  */
 
 #include "gl3_buffer.h"
+#include "gl3_view.h"
 
 #include "i_system.h"
 #include "v_video.h"
+#include "doomstat.h"
 
 ///////////////////////////
 // OpenGL buffer handling
@@ -135,16 +137,15 @@ void gl3_FlushBuffers(void) {
   // No vertices to draw
   if (!curvert) return;
 
-  // Orphan buffers
-  OrphanBuffer(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), sizeof(gl3_block_t), &gl3_shaderdata);
-
-  OrphanBuffer(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount,
-               sizeof(gl3_vert_t)*curvert, gl3_verts);
-  if (curind) OrphanBuffer(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount, 2*curind, gl3_inds);
-
+  // Setup uniforms before orphaning
   switch (curbuf) {
   case GL3_BUF_LINES:
     lprintf(LO_DEBUG, "gl3_FlushBuffers: Drawing line batch\n");
+
+    // Orphan buffers
+    OrphanBuffer(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), sizeof(gl3_block_t), &gl3_shaderdata);
+    OrphanBuffer(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount,
+                 sizeof(gl3_vert_t)*curvert, gl3_verts);
 
     GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_LINE].program));
     GL3(glDrawArrays(GL_LINES, 0, curvert));
@@ -152,11 +153,26 @@ void gl3_FlushBuffers(void) {
   case GL3_BUF_PATCHES:
     lprintf(LO_DEBUG, "gl3_FlushBuffers: Drawing patch batch\n");
 
+    // Orphan buffers
+    OrphanBuffer(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), sizeof(gl3_block_t), &gl3_shaderdata);
+    OrphanBuffer(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount,
+                 sizeof(gl3_vert_t)*curvert, gl3_verts);
+    OrphanBuffer(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount,
+                 2*curind, gl3_inds);
+
     GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_PATCH].program));
     GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
     break;
   case GL3_BUF_WALLS:
     lprintf(LO_DEBUG, "gl3_FlushBuffers: Drawing wall batch\n");
+
+    // Set uniforms
+    gl3_SetViewMatrices(players[displayplayer].mo);
+
+    // Orphan buffers
+    OrphanBuffer(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), sizeof(gl3_block_t), &gl3_shaderdata);
+    OrphanBuffer(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount,
+                 sizeof(gl3_vert_t)*curvert, gl3_verts);
 
     GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_WALL].program));
     GL3(glDrawArrays(GL_LINES, 0, curvert));
@@ -215,6 +231,8 @@ void gl3_AddVerts(const gl3_vert_t *verts, size_t vertcnt,
 void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float height,
                   int cm, enum patch_translation_e flags)
 {
+  // TODO: I have transformation matrices in the shader now,
+  // I can heavily optimize this operation!
   static const float one_over_320 = 1.f/320.f;
   static const float one_over_200 = 1.f/200.f;
 
@@ -325,5 +343,5 @@ void gl3_AddImage(const gl3_img_t *img, float x, float y, float width, float hei
   verts[2].flags = vflags;
 
   // Draw quad
-  gl3_AddQuad(verts);
+  gl3_AddQuad(verts, GL3_BUF_PATCHES);
 }

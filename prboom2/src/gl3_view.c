@@ -25,15 +25,16 @@
 
 static const float invFrac = 1.f/(float)FRACUNIT;
 
-// TODO: I don't wanna set these matrices when rendering begins,
-// I wanna set these matrices right before flushing the buffers!
-void gl3_StartPlayerView(mobj_t *player) {
+void gl3_SetViewMatrices(mobj_t *player) {
+//static const double angletorad = 2.0/4294967296.0*3.14159265358979323846;
+  static const double angletorad = 0.00000000146291807927;
+
   // Player angle in radians
   // Kinda hard to get considering how huge the number can be
   double dir;
 
   // Kinda cool you can do this in one multiply
-  dir = (double)player->angle*(2.0/4294967296.0*3.14159265358979323846);
+  dir = (double)player->angle*angletorad;
 
   // Set transformation matrices
   memset(gl3_shaderdata.projmat, 0, sizeof(gl3_shaderdata.projmat));
@@ -69,16 +70,20 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   line_t *l = line->linedef;
   side_t *s = line->sidedef;
   const gl3_img_t *img = gl3_GetWall(s->midtexture);
-  float x1, y1, x2, y2;
+  float x1, y1, x2, y2, dx, dy;
   union {
     float f;
     unsigned i;
   } dir;
 
+  if (s->midtexture == 0) return;
+
   x1 = (float)line->v1->x*invFrac;
   y1 = (float)line->v1->y*invFrac;
   x2 = (float)line->v2->x*invFrac;
   y2 = (float)line->v2->y*invFrac;
+  dx = (float)l->dx*invFrac;
+  dy = (float)l->dy*invFrac;
 
   verts[0].x = x1;
   verts[0].y = y1;
@@ -89,7 +94,7 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   verts[1].x = x2;
   verts[1].y = y2;
   verts[1].z = 0.f;
-  verts[1].coord.x = img->width;
+  verts[1].coord.x = sqrt(dx*dx + dy*dy);
   verts[1].coord.y = 0;
 
   verts[1].imgcoord = img->tl;

@@ -62,7 +62,6 @@
 
 #ifdef GL_DOOM
 #include "gl3_main.h"
-#include "gl3_view.h"
 #endif
 
 // e6y
@@ -1043,9 +1042,6 @@ static void R_SetupFrame (player_t *player)
 
   if (V_LegacyGLActive() || hudadd_crosshair)
     R_SetupMatrix();
-
-  if (V_GL3Active())
-    gl3_StartPlayerView(player->mo);
 
   validcount++;
 }

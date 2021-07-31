@@ -118,13 +118,6 @@ int gl3_GL_MAX_TEXTURE_SIZE;
 int gl3_GL_MAX_3D_TEXTURE_SIZE;
 int gl3_GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT;
 
-static const GLfloat mat[4][4] = {
-  {1.f, 0.f, 0.f, 0.f},
-  {0.f, 1.f, 0.f, 0.f},
-  {0.f, 0.f, 1.f, 0.f},
-  {0.f, 0.f, 0.f, 1.f}
-};
-
 void gl3_Init(int width, int height) {
   const char *vendor, *renderer, *version, *glslVer;
   int i;
@@ -186,11 +179,6 @@ void gl3_Init(int width, int height) {
   // Enable alpha blending
   GL3(glEnable(GL_BLEND));
   GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-
-  // Initialize matrices
-  memcpy(gl3_shaderdata.projmat, mat, sizeof(mat));
-  memcpy(gl3_shaderdata.rotmat, mat, sizeof(mat));
-  memcpy(gl3_shaderdata.transmat, mat, sizeof(mat));
 }
 
 void gl3_Start(void) {
@@ -233,7 +221,7 @@ void gl3_FillRect(int scrn, int x, int y, int width, int height, byte color) {
   if (color == ppd->transparent) color = ppd->duplicate;
   verts[2].imgcoord = gl3_ColCoord(color);
 
-  gl3_AddQuad(verts);
+  gl3_AddQuad(verts, GL3_BUF_PATCHES);
 }
 
 void gl3_DrawBackground(const char *flatname, int n) {
