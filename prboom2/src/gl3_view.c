@@ -21,6 +21,7 @@
 
 #include "e6y.h"
 #include "r_main.h"
+#include "st_stuff.h"
 
 #include <math.h>
 
@@ -30,7 +31,7 @@ void gl3_SetViewMatrices(mobj_t *player) {
 //static const double angletorad = 2.0/4294967296.0*M_PI;
   static const double angletorad = 0.00000000146291807927;
 
-  static const float nearclip = 10.f;
+  static const float nearclip = 9.f;
   static const float farclip = 2000.f;
 
   static const float clipdist = farclip-nearclip;
@@ -52,26 +53,26 @@ void gl3_SetViewMatrices(mobj_t *player) {
   projdist = tanf((float)M_PI/2.f - fovy*((float)M_PI/360.f));
 
   // Kinda cool you can do this in one multiply
-  dir = (double)player->angle*angletorad;
+  dir = (double)viewangle*angletorad;
   dir -= M_PI/2.0;
 
   // Set transformation matrices
 
   // Translation matrix (fixed point is converted to floating point):
-  //   1, 0, 0, -player->x
-  //   0, 1, 0, -player->z
-  //   0, 0, 1, -player->y
+  //   1, 0, 0, -viewx
+  //   0, 1, 0, -viewz
+  //   0, 0, 1, -viewy
   //   0, 0, 0, 1
   memcpy(gl3_shaderdata.transmat, identmat, sizeof(identmat));
-  gl3_shaderdata.transmat[3][0] = -(float)player->x*invFrac;
-  gl3_shaderdata.transmat[3][1] = -(float)player->z*invFrac;
-  gl3_shaderdata.transmat[3][2] = -(float)player->y*invFrac;
+  gl3_shaderdata.transmat[3][0] = -(float)viewx*invFrac;
+  gl3_shaderdata.transmat[3][1] = -(float)viewz*invFrac;
+  gl3_shaderdata.transmat[3][2] = -(float)viewy*invFrac;
 
   // Rotation matrix (angles are converted to radians):
-  //   cos(player->angle),  0, sin(player->angle), 0
-  //   0,                   1, 0,                  0
-  //   -sin(player->angle), 0, cos(player->angle), 0
-  //   0,                   0, 0,                  1
+  //   cos(viewangle),  0, sin(viewangle), 0
+  //   0,               1, 0,              0
+  //   -sin(viewangle), 0, cos(viewangle), 0
+  //   0,               0, 0,              1
   memcpy(gl3_shaderdata.rotmat, identmat, sizeof(identmat));
   gl3_shaderdata.rotmat[0][0] = cos(dir);
   gl3_shaderdata.rotmat[2][0] = sin(dir);
@@ -84,7 +85,7 @@ void gl3_SetViewMatrices(mobj_t *player) {
   // are really bad, further objects get so little variation in depth that if you
   // were playing a big map, it's not too unlikely shenanigans would occur.
   memcpy(gl3_shaderdata.projmat, identmat, sizeof(gl3_shaderdata.projmat));
-  gl3_shaderdata.projmat[0][0] = projdist * ((float)SCREENHEIGHT/(float)SCREENWIDTH);
+  gl3_shaderdata.projmat[0][0] = projdist/render_ratio;
   gl3_shaderdata.projmat[1][1] = projdist;
   gl3_shaderdata.projmat[2][2] = (farclip+nearclip*2.f)/farclip;
   gl3_shaderdata.projmat[3][2] = -nearclip*2.f;
@@ -100,8 +101,14 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   side_t *s = line->sidedef;
   const gl3_img_t *img;
   float dx, dy, dist;
+  angle_t ang1, ang2;
 
   if (s->midtexture == 0) return;
+
+  ang1 = R_PointToAngleEx2(viewx, viewy, line->v1->x, line->v1->y);
+  ang2 = R_PointToAngleEx2(viewx, viewy, line->v2->x, line->v2->y);
+  if (ang1-ang2 > ANG180)
+    return;
 
   img = gl3_GetWall(s->midtexture);
 
