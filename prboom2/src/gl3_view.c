@@ -30,7 +30,7 @@ void gl3_SetViewMatrices(mobj_t *player) {
 //static const double angletorad = 2.0/4294967296.0*M_PI;
   static const double angletorad = 0.00000000146291807927;
 
-  static const float nearclip = 25.f;
+  static const float nearclip = 10.f;
   static const float farclip = 2000.f;
 
   static const float clipdist = farclip-nearclip;
@@ -86,7 +86,7 @@ void gl3_SetViewMatrices(mobj_t *player) {
   memcpy(gl3_shaderdata.projmat, identmat, sizeof(gl3_shaderdata.projmat));
   gl3_shaderdata.projmat[0][0] = projdist * ((float)SCREENHEIGHT/(float)SCREENWIDTH);
   gl3_shaderdata.projmat[1][1] = projdist;
-  gl3_shaderdata.projmat[2][2] = (farclip+nearclip)/farclip;
+  gl3_shaderdata.projmat[2][2] = (farclip+nearclip*2.f)/farclip;
   gl3_shaderdata.projmat[3][2] = -nearclip*2.f;
   gl3_shaderdata.projmat[2][3] = 1.f;
   gl3_shaderdata.projmat[3][3] = 0.f;
@@ -105,32 +105,32 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
 
   img = gl3_GetWall(s->midtexture);
 
-  dx = (float)l->dx*invFrac;
-  dy = (float)l->dy*invFrac;
+  dx = (float)(line->v1->x-line->v2->x)*invFrac;
+  dy = (float)(line->v1->y-line->v2->y)*invFrac;
   dist = sqrtf(dx*dx + dy*dy);
 
   verts[0].x = (float)line->v1->x*invFrac;
   verts[0].y = (float)line->frontsector->ceilingheight*invFrac;
   verts[0].z = (float)line->v1->y*invFrac;
-  verts[0].coord.x = 0;
+  verts[0].coord.x = line->offset*invFrac;
   verts[0].coord.y = 0;
 
   verts[1].x = (float)line->v2->x*invFrac;
   verts[1].y = (float)line->frontsector->ceilingheight*invFrac;
   verts[1].z = (float)line->v2->y*invFrac;
-  verts[1].coord.x = dist;
+  verts[1].coord.x = line->offset*invFrac + dist;
   verts[1].coord.y = 0;
 
   verts[2].x = (float)line->v1->x*invFrac;
   verts[2].y = (float)line->frontsector->floorheight*invFrac;
   verts[2].z = (float)line->v1->y*invFrac;
-  verts[2].coord.x = 0;
+  verts[2].coord.x = line->offset*invFrac;
   verts[2].coord.y = (float)(line->frontsector->ceilingheight-line->frontsector->floorheight)*invFrac;
 
   verts[3].x = (float)line->v2->x*invFrac;
   verts[3].y = (float)line->frontsector->floorheight*invFrac;
   verts[3].z = (float)line->v2->y*invFrac;
-  verts[3].coord.x = dist;
+  verts[3].coord.x = line->offset*invFrac + dist;
   verts[3].coord.y = (float)(line->frontsector->ceilingheight-line->frontsector->floorheight)*invFrac;
 
   verts[2].imgcoord = img->tl;
