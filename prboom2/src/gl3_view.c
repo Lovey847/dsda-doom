@@ -93,57 +93,99 @@ void gl3_SetViewMatrices(mobj_t *player) {
   gl3_shaderdata.projmat[3][3] = 0.f;
 }
 
-void gl3_DrawWall(seg_t *line, mobj_t *player) {
+// Draw single wall from line
+static void gl3_DrawWallPart(line_t *l, side_t *s,
+                             float dist, float x1, float y1, float x2, float y2,
+                             float floorheight, float ceilingheight,
+                             float xoffset, float yoffset, short texture)
+{
   // Quad vertices
   gl3_vert_t verts[4];
 
-  line_t *l = line->linedef;
-  side_t *s = line->sidedef;
   const gl3_img_t *img;
-  float dx, dy, dist;
-  angle_t ang1, ang2;
 
-  if (s->midtexture == 0) return;
+  img = gl3_GetWall(texture);
 
-  ang1 = R_PointToAngleEx2(viewx, viewy, line->v1->x, line->v1->y);
-  ang2 = R_PointToAngleEx2(viewx, viewy, line->v2->x, line->v2->y);
-  if (ang1-ang2 > ANG180)
-    return;
+  verts[0].x = x1;
+  verts[0].y = ceilingheight;
+  verts[0].z = y1;
+  verts[0].coord.x = xoffset;
+  verts[0].coord.y = yoffset;
 
-  img = gl3_GetWall(s->midtexture);
+  verts[1].x = x2;
+  verts[1].y = ceilingheight;
+  verts[1].z = y2;
+  verts[1].coord.x = dist + xoffset;
+  verts[1].coord.y = yoffset;
 
-  dx = (float)(line->v1->x-line->v2->x)*invFrac;
-  dy = (float)(line->v1->y-line->v2->y)*invFrac;
-  dist = sqrtf(dx*dx + dy*dy);
+  verts[2].x = x1;
+  verts[2].y = floorheight;
+  verts[2].z = y1;
+  verts[2].coord.x = xoffset;
+  verts[2].coord.y = ceilingheight-floorheight + yoffset;
 
-  verts[0].x = (float)line->v1->x*invFrac;
-  verts[0].y = (float)line->frontsector->ceilingheight*invFrac;
-  verts[0].z = (float)line->v1->y*invFrac;
-  verts[0].coord.x = line->offset*invFrac;
-  verts[0].coord.y = 0;
+  verts[3].x = x2;
+  verts[3].y = floorheight;
+  verts[3].z = y2;
+  verts[3].coord.x = dist + xoffset;
+  verts[3].coord.y = ceilingheight-floorheight + yoffset;
 
-  verts[1].x = (float)line->v2->x*invFrac;
-  verts[1].y = (float)line->frontsector->ceilingheight*invFrac;
-  verts[1].z = (float)line->v2->y*invFrac;
-  verts[1].coord.x = line->offset*invFrac + dist;
-  verts[1].coord.y = 0;
-
-  verts[2].x = (float)line->v1->x*invFrac;
-  verts[2].y = (float)line->frontsector->floorheight*invFrac;
-  verts[2].z = (float)line->v1->y*invFrac;
-  verts[2].coord.x = line->offset*invFrac;
-  verts[2].coord.y = (float)(line->frontsector->ceilingheight-line->frontsector->floorheight)*invFrac;
-
-  verts[3].x = (float)line->v2->x*invFrac;
-  verts[3].y = (float)line->frontsector->floorheight*invFrac;
-  verts[3].z = (float)line->v2->y*invFrac;
-  verts[3].coord.x = line->offset*invFrac + dist;
-  verts[3].coord.y = (float)(line->frontsector->ceilingheight-line->frontsector->floorheight)*invFrac;
-
+  // Flat fragment properties
   verts[2].imgcoord = img->tl;
   verts[2].imgsize.x = img->width;
   verts[2].imgsize.y = img->height;
   verts[2].flags = 0;
 
   gl3_AddQuad(verts, GL3_BUF_WALLS);
+}
+
+void gl3_DrawWall(seg_t *line, mobj_t *player) {
+  // Quad vertices
+  gl3_vert_t verts[4];
+
+  line_t *l = line->linedef;
+  side_t *s = line->sidedef;
+  float x1, y1, x2, y2;
+  float backfloorheight, backceilingheight;
+  float floorheight, ceilingheight;
+  float dx, dy, dist;
+  float xoffset, yoffset;
+  angle_t ang1, ang2;
+
+  ang1 = R_PointToAngleEx2(viewx, viewy, line->v1->x, line->v1->y);
+  ang2 = R_PointToAngleEx2(viewx, viewy, line->v2->x, line->v2->y);
+  if (ang1-ang2 > ANG180)
+    return;
+
+  x1 = (float)line->v1->x*invFrac;
+  y1 = (float)line->v1->y*invFrac;
+  x2 = (float)line->v2->x*invFrac;
+  y2 = (float)line->v2->y*invFrac;
+
+  floorheight = (float)line->frontsector->floorheight*invFrac;
+  ceilingheight = (float)line->frontsector->ceilingheight*invFrac;
+
+  if (line->backsector) {
+    backfloorheight = (float)line->backsector->floorheight*invFrac;
+    backceilingheight = (float)line->backsector->ceilingheight*invFrac;
+  } else {
+    backfloorheight = floorheight;
+    backceilingheight = ceilingheight;
+  }
+
+  dx = (float)(line->v1->x-line->v2->x)*invFrac;
+  dy = (float)(line->v1->y-line->v2->y)*invFrac;
+  dist = sqrtf(dx*dx + dy*dy);
+
+  xoffset = (float)(s->textureoffset+line->offset)*invFrac;
+  yoffset = (float)s->rowoffset*invFrac;
+
+  if (s->midtexture) gl3_DrawWallPart(l, s, dist, x1, y1, x2, y2, floorheight, ceilingheight,
+                                      xoffset, yoffset, s->midtexture);
+  if (backceilingheight < ceilingheight) gl3_DrawWallPart(l, s, dist, x1, y1, x2, y2,
+                                                          backceilingheight, ceilingheight,
+                                                          xoffset, yoffset, s->toptexture);
+  if (backfloorheight > floorheight) gl3_DrawWallPart(l, s, dist, x1, y1, x2, y2,
+                                                      floorheight, backfloorheight,
+                                                      xoffset, yoffset, s->bottomtexture);
 }
