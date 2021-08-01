@@ -47,7 +47,7 @@ static const char lvShaderCode[] = SHADERSRC(
   flat out uint palTimesTransTables;
 
   void main() {
-    gl_Position = vec4(invert.xy, 0.0, 1.0);
+    gl_Position = vec4(invert.xy, -1.0, 1.0);
 
     col = incol;
     palTimesTransTables = shaderdata.palTimesTransTables;
@@ -91,7 +91,7 @@ static const char pvShaderCode[] = SHADERSRC(
   flat out uint palTimesTransTables;
 
   void main() {
-    gl_Position = vec4(invert.xy, 0.0, 1.0);
+    gl_Position = vec4(invert.xy, -1.0, 1.0);
 
     imgcoord = inimgcoord;
     imgsize = inimgsize;
@@ -141,9 +141,13 @@ static const char wvShaderCode[] = SHADERSRC(
   out vec2 coord;
   flat out uint flags;
   flat out uint palTimesTransTables;
+  out float z;
 
   void main() {
     gl_Position = shaderdata.projmat*shaderdata.rotmat*shaderdata.transmat * vec4(invert, 1.0);
+
+    z = gl_Position.z;
+    gl_Position.z *= gl_Position.w;
 
     imgcoord = inimgcoord;
     imgsize = inimgsize;
@@ -154,12 +158,17 @@ static const char wvShaderCode[] = SHADERSRC(
 
   );
 
+// TODO: I wanna figure out why I have to use the z coordinate here
+// and why I can't just use the actual frag depth, is it the distance
+// to the fragment or something? If that's the case, why did the
+// solution I found online work?
 static const char wfShaderCode[] = SHADERSRC(
   flat in ivec2 imgcoord;
   flat in ivec2 imgsize;
   in vec2 coord;
   flat in uint flags;
   flat in uint palTimesTransTables;
+  in float z;
 
   uniform usampler2D tex;
   uniform sampler3D pal;
@@ -170,6 +179,7 @@ static const char wfShaderCode[] = SHADERSRC(
     ivec2 c = ivec2(mod(coord, vec2(imgsize))) + imgcoord;
     uint ind = texelFetch(tex, c, 0).r;
     fragcolor = texelFetch(pal, ivec3(ind, 0, palTimesTransTables), 0);
+    gl_FragDepth = z/2.0+0.5;
   }
 
   );

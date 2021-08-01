@@ -136,8 +136,9 @@ void gl3_Init(int width, int height) {
   }
 #endif
 
-  // Set clear color
+  // Set clear color&depth
   GL3(glClearColor(0.f, 0.f, 0.f, 1.f));
+  GL3(glClearDepth(1.f));
 
   // Log opengl information
   vendor = GL3(glGetString(GL_VENDOR));
@@ -179,11 +180,15 @@ void gl3_Init(int width, int height) {
   // Enable alpha blending
   GL3(glEnable(GL_BLEND));
   GL3(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
+  // Enable depth buffer
+  GL3(glEnable(GL_DEPTH_TEST));
+  GL3(glDepthFunc(GL_LEQUAL));
 }
 
 void gl3_Start(void) {
   lprintf(LO_DEBUG, "gl3_Start: Frame start\n\n");
-  GL3(glClear(GL_COLOR_BUFFER_BIT));
+  GL3(glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT));
 }
 
 void gl3_Finish(void) {

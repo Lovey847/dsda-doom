@@ -173,9 +173,16 @@ void gl3_FlushBuffers(void) {
     OrphanBuffer(GL_UNIFORM_BUFFER, sizeof(gl3_block_t), sizeof(gl3_block_t), &gl3_shaderdata);
     OrphanBuffer(GL_ARRAY_BUFFER, sizeof(gl3_vert_t)*gl3_vertcount,
                  sizeof(gl3_vert_t)*curvert, gl3_verts);
+    OrphanBuffer(GL_ELEMENT_ARRAY_BUFFER, 2*gl3_indcount,
+                 2*curind, gl3_inds);
+
+    // Enable depth buffer
+    GL3(glDepthFunc(GL_LESS));
 
     GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_WALL].program));
-    GL3(glDrawArrays(GL_LINES, 0, curvert));
+    GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
+
+    GL3(glDepthFunc(GL_ALWAYS));
     break;
 
   default: lprintf(LO_WARN, "gl3_FlushBuffers: Unknown buffer active!? (%d)\n", curbuf); return;

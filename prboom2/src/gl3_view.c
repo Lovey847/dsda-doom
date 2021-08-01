@@ -19,6 +19,7 @@
 #include "gl3_buffer.h"
 #include "gl3_texture.h"
 
+#include "e6y.h"
 #include "r_main.h"
 
 #include <math.h>
@@ -26,81 +27,112 @@
 static const float invFrac = 1.f/(float)FRACUNIT;
 
 void gl3_SetViewMatrices(mobj_t *player) {
-//static const double angletorad = 2.0/4294967296.0*3.14159265358979323846;
+//static const double angletorad = 2.0/4294967296.0*M_PI;
   static const double angletorad = 0.00000000146291807927;
+
+  static const float nearclip = 25.f;
+  static const float farclip = 2000.f;
+
+  static const float clipdist = farclip-nearclip;
+
+  static const GLfloat identmat[4][4] = {
+    {1.f, 0.f, 0.f, 0.f},
+    {0.f, 1.f, 0.f, 0.f},
+    {0.f, 0.f, 1.f, 0.f},
+    {0.f, 0.f, 0.f, 1.f}
+  };
 
   // Player angle in radians
   // Kinda hard to get considering how huge the number can be
   double dir;
+  float projdist; // Distance to projection plane
+  float fovy; // fov in Y axis
+
+  fovy = render_fovy;
+  projdist = tanf((float)M_PI/2.f - fovy*((float)M_PI/360.f));
 
   // Kinda cool you can do this in one multiply
   dir = (double)player->angle*angletorad;
+  dir -= M_PI/2.0;
 
   // Set transformation matrices
-  memset(gl3_shaderdata.projmat, 0, sizeof(gl3_shaderdata.projmat));
-  gl3_shaderdata.projmat[3][1] = (float)(SCREENHEIGHT/2-viewwindowy-viewheight/2)/(float)SCREENHEIGHT;
-  gl3_shaderdata.projmat[0][0] = (float)scaledviewwidth/(float)(SCREENWIDTH*SCREENWIDTH);
-  gl3_shaderdata.projmat[1][1] = gl3_shaderdata.projmat[0][0] * (float)SCREENWIDTH/(float)SCREENHEIGHT;
-  gl3_shaderdata.projmat[2][2] = 1.f;
-  gl3_shaderdata.projmat[3][3] = 1.f;
 
-  memset(gl3_shaderdata.transmat, 0, sizeof(gl3_shaderdata.transmat));
+  // Translation matrix (fixed point is converted to floating point):
+  //   1, 0, 0, -player->x
+  //   0, 1, 0, -player->z
+  //   0, 0, 1, -player->y
+  //   0, 0, 0, 1
+  memcpy(gl3_shaderdata.transmat, identmat, sizeof(identmat));
   gl3_shaderdata.transmat[3][0] = -(float)player->x*invFrac;
-  gl3_shaderdata.transmat[3][1] = -(float)player->y*invFrac;
-  gl3_shaderdata.transmat[0][0] = 1.f;
-  gl3_shaderdata.transmat[1][1] = 1.f;
-  gl3_shaderdata.transmat[2][2] = 1.f;
-  gl3_shaderdata.transmat[3][3] = 1.f;
+  gl3_shaderdata.transmat[3][1] = -(float)player->z*invFrac;
+  gl3_shaderdata.transmat[3][2] = -(float)player->y*invFrac;
 
-  memset(gl3_shaderdata.rotmat, 0, sizeof(gl3_shaderdata.rotmat));
+  // Rotation matrix (angles are converted to radians):
+  //   cos(player->angle),  0, sin(player->angle), 0
+  //   0,                   1, 0,                  0
+  //   -sin(player->angle), 0, cos(player->angle), 0
+  //   0,                   0, 0,                  1
+  memcpy(gl3_shaderdata.rotmat, identmat, sizeof(identmat));
   gl3_shaderdata.rotmat[0][0] = cos(dir);
-  gl3_shaderdata.rotmat[1][0] = sin(dir);
-  gl3_shaderdata.rotmat[0][1] = -sin(dir);
-  gl3_shaderdata.rotmat[1][1] = cos(dir);
-  gl3_shaderdata.rotmat[2][2] = 1.f;
-  gl3_shaderdata.rotmat[3][3] = 1.f;
+  gl3_shaderdata.rotmat[2][0] = sin(dir);
+  gl3_shaderdata.rotmat[0][2] = -sin(dir);
+  gl3_shaderdata.rotmat[2][2] = cos(dir);
+
+  // Projection matrix
+  memcpy(gl3_shaderdata.projmat, identmat, sizeof(gl3_shaderdata.projmat));
+  gl3_shaderdata.projmat[0][0] = projdist * ((float)SCREENHEIGHT/(float)SCREENWIDTH);
+  gl3_shaderdata.projmat[1][1] = projdist;
+  gl3_shaderdata.projmat[2][2] = 2.f/clipdist;
+  gl3_shaderdata.projmat[3][2] = -1.f - 2.f*nearclip/clipdist;
+  gl3_shaderdata.projmat[2][3] = 1.f;
+  gl3_shaderdata.projmat[3][3] = 0.f;
 }
 
 void gl3_DrawWall(seg_t *line, mobj_t *player) {
   // Quad vertices
   gl3_vert_t verts[4];
 
-  // TODO: This is all a test, actually implement the shaders, matrices and math needed
-  // to draw walls!
   line_t *l = line->linedef;
   side_t *s = line->sidedef;
-  const gl3_img_t *img = gl3_GetWall(s->midtexture);
-  float x1, y1, x2, y2, dx, dy;
-  union {
-    float f;
-    unsigned i;
-  } dir;
+  const gl3_img_t *img;
+  float dx, dy, dist;
 
   if (s->midtexture == 0) return;
 
-  x1 = (float)line->v1->x*invFrac;
-  y1 = (float)line->v1->y*invFrac;
-  x2 = (float)line->v2->x*invFrac;
-  y2 = (float)line->v2->y*invFrac;
+  img = gl3_GetWall(s->midtexture);
+
   dx = (float)l->dx*invFrac;
   dy = (float)l->dy*invFrac;
+  dist = sqrtf(dx*dx + dy*dy);
 
-  verts[0].x = x1;
-  verts[0].y = y1;
-  verts[0].z = 0.f;
+  verts[0].x = (float)line->v1->x*invFrac;
+  verts[0].y = (float)line->frontsector->ceilingheight*invFrac;
+  verts[0].z = (float)line->v1->y*invFrac;
   verts[0].coord.x = 0;
   verts[0].coord.y = 0;
 
-  verts[1].x = x2;
-  verts[1].y = y2;
-  verts[1].z = 0.f;
-  verts[1].coord.x = sqrt(dx*dx + dy*dy);
+  verts[1].x = (float)line->v2->x*invFrac;
+  verts[1].y = (float)line->frontsector->ceilingheight*invFrac;
+  verts[1].z = (float)line->v2->y*invFrac;
+  verts[1].coord.x = dist;
   verts[1].coord.y = 0;
 
-  verts[1].imgcoord = img->tl;
-  verts[1].imgsize.x = img->width;
-  verts[1].imgsize.y = img->height;
-  verts[1].flags = 0; // No flags
+  verts[2].x = (float)line->v1->x*invFrac;
+  verts[2].y = (float)line->frontsector->floorheight*invFrac;
+  verts[2].z = (float)line->v1->y*invFrac;
+  verts[2].coord.x = 0;
+  verts[2].coord.y = (float)(line->frontsector->ceilingheight-line->frontsector->floorheight)*invFrac;
 
-  gl3_AddVerts(verts, 2, NULL, 0, GL3_BUF_WALLS);
+  verts[3].x = (float)line->v2->x*invFrac;
+  verts[3].y = (float)line->frontsector->floorheight*invFrac;
+  verts[3].z = (float)line->v2->y*invFrac;
+  verts[3].coord.x = dist;
+  verts[3].coord.y = (float)(line->frontsector->ceilingheight-line->frontsector->floorheight)*invFrac;
+
+  verts[2].imgcoord = img->tl;
+  verts[2].imgsize.x = img->width;
+  verts[2].imgsize.y = img->height;
+  verts[2].flags = 0;
+
+  gl3_AddQuad(verts, GL3_BUF_WALLS);
 }

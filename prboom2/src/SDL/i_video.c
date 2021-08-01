@@ -1211,6 +1211,10 @@ void I_UpdateVideoMode(void)
       // Enable double buffering
       SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
+      // Get a 24-bit depth buffer
+      SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+      SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
       // Create core profile 3.3 context
       SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
       SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
