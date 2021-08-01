@@ -79,11 +79,15 @@ void gl3_SetViewMatrices(mobj_t *player) {
   gl3_shaderdata.rotmat[2][2] = cos(dir);
 
   // Projection matrix
+  // TODO: Learn a better depth strategy, this (should) correctly map from
+  // the near clipping plane to the far clipping plane, however the propertions
+  // are really bad, further objects get so little variation in depth that if you
+  // were playing a big map, it's not too unlikely shenanigans would occur.
   memcpy(gl3_shaderdata.projmat, identmat, sizeof(gl3_shaderdata.projmat));
   gl3_shaderdata.projmat[0][0] = projdist * ((float)SCREENHEIGHT/(float)SCREENWIDTH);
   gl3_shaderdata.projmat[1][1] = projdist;
-  gl3_shaderdata.projmat[2][2] = 2.f/clipdist;
-  gl3_shaderdata.projmat[3][2] = -1.f - 2.f*nearclip/clipdist;
+  gl3_shaderdata.projmat[2][2] = (farclip+nearclip)/farclip;
+  gl3_shaderdata.projmat[3][2] = -nearclip*2.f;
   gl3_shaderdata.projmat[2][3] = 1.f;
   gl3_shaderdata.projmat[3][3] = 0.f;
 }
