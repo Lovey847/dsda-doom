@@ -179,16 +179,24 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   xoffset = (float)(s->textureoffset+line->offset)*invFrac;
   yoffset = (float)s->rowoffset*invFrac;
 
-  if (s->midtexture)
+  // TODO: Figure out how texturemid works in draw_column_vars_t,
+  // so that I can properly implement unpegging!
+  if (s->midtexture || !line->backsector) {
+    float yoff = yoffset;
+    if (l->flags&ML_DONTPEGBOTTOM) yoff += floorheight-ceilingheight;
+
     gl3_DrawWallPart(l, s, mid, dist, x1, y1, x2, y2,
                      floorheight, ceilingheight,
-                     xoffset, yoffset);
-  if (backceilingheight < ceilingheight)
+                     xoffset, yoff);
+  }
+  if (backceilingheight < ceilingheight) {
     gl3_DrawWallPart(l, s, top, dist, x1, y1, x2, y2,
                      backceilingheight, ceilingheight,
-                     xoffset, backceilingheight-ceilingheight+yoffset);
-  if (backfloorheight > floorheight)
+                     xoffset, yoffset);
+  }
+  if (backfloorheight > floorheight) {
     gl3_DrawWallPart(l, s, bottom, dist, x1, y1, x2, y2,
                      floorheight, backfloorheight,
                      xoffset, yoffset);
+  }
 }

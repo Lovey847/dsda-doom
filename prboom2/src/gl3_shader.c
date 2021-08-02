@@ -141,7 +141,6 @@ static const char wvShaderCode[] = SHADERSRC(
   out vec2 coord;
   flat out uint flags;
   flat out uint palTimesTransTables;
-  flat out vec4 col;
 
   void main() {
     gl_Position = shaderdata.projmat*shaderdata.rotmat*shaderdata.transmat * vec4(invert, 1.0);
@@ -151,8 +150,6 @@ static const char wvShaderCode[] = SHADERSRC(
     coord = incoord;
     flags = inflags;
     palTimesTransTables = shaderdata.palTimesTransTables;
-
-    col = vec4(mod(invert.x/64.0, 1.0), mod(invert.y/64.0, 1.0), mod(invert.z/64.0, 1.0), 1.0);
   }
 
   );
@@ -163,7 +160,6 @@ static const char wfShaderCode[] = SHADERSRC(
   in vec2 coord;
   flat in uint flags;
   flat in uint palTimesTransTables;
-  flat in vec4 col;
 
   uniform usampler2D tex;
   uniform sampler3D pal;
