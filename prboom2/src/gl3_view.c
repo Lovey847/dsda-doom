@@ -164,14 +164,6 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   floorheight = (float)line->frontsector->floorheight*invFrac;
   ceilingheight = (float)line->frontsector->ceilingheight*invFrac;
 
-  if (line->backsector) {
-    backfloorheight = (float)line->backsector->floorheight*invFrac;
-    backceilingheight = (float)line->backsector->ceilingheight*invFrac;
-  } else {
-    backfloorheight = floorheight;
-    backceilingheight = ceilingheight;
-  }
-
   dx = (float)(line->v1->x-line->v2->x)*invFrac;
   dy = (float)(line->v1->y-line->v2->y)*invFrac;
   dist = sqrtf(dx*dx + dy*dy);
@@ -179,24 +171,33 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   xoffset = (float)(s->textureoffset+line->offset)*invFrac;
   yoffset = (float)s->rowoffset*invFrac;
 
-  // TODO: Figure out how texturemid works in draw_column_vars_t,
-  // so that I can properly implement unpegging!
-  if (s->midtexture || !line->backsector) {
+  // One sided line
+  if (!line->backsector) {
     float yoff = yoffset;
     if (l->flags&ML_DONTPEGBOTTOM) yoff += floorheight-ceilingheight;
 
     gl3_DrawWallPart(l, s, mid, dist, x1, y1, x2, y2,
                      floorheight, ceilingheight,
                      xoffset, yoff);
-  }
-  if (backceilingheight < ceilingheight) {
-    gl3_DrawWallPart(l, s, top, dist, x1, y1, x2, y2,
-                     backceilingheight, ceilingheight,
-                     xoffset, yoffset);
-  }
-  if (backfloorheight > floorheight) {
-    gl3_DrawWallPart(l, s, bottom, dist, x1, y1, x2, y2,
-                     floorheight, backfloorheight,
-                     xoffset, yoffset);
+  } else { // Two sided line
+    backfloorheight = (float)line->backsector->floorheight*invFrac;
+    backceilingheight = (float)line->backsector->ceilingheight*invFrac;
+
+    if (backceilingheight < ceilingheight) {
+      float yoff = yoffset;
+      if (!(l->flags&ML_DONTPEGTOP)) yoff += backceilingheight-ceilingheight;
+
+      gl3_DrawWallPart(l, s, top, dist, x1, y1, x2, y2,
+                       backceilingheight, ceilingheight,
+                       xoffset, yoff);
+    }
+    if (floorheight < backfloorheight) {
+      float yoff = yoffset;
+      if (l->flags & ML_DONTPEGBOTTOM) yoff += ceilingheight-backfloorheight;
+
+      gl3_DrawWallPart(l, s, bottom, dist, x1, y1, x2, y2,
+                       floorheight, backfloorheight,
+                       xoffset, yoff);
+    }
   }
 }
