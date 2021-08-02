@@ -94,17 +94,13 @@ void gl3_SetViewMatrices(mobj_t *player) {
 }
 
 // Draw single wall from line
-static void gl3_DrawWallPart(line_t *l, side_t *s,
+static void gl3_DrawWallPart(line_t *l, side_t *s, const gl3_img_t *img,
                              float dist, float x1, float y1, float x2, float y2,
                              float floorheight, float ceilingheight,
-                             float xoffset, float yoffset, short texture)
+                             float xoffset, float yoffset)
 {
   // Quad vertices
   gl3_vert_t verts[4];
-
-  const gl3_img_t *img;
-
-  img = gl3_GetWall(texture);
 
   verts[0].x = x1;
   verts[0].y = ceilingheight;
@@ -140,8 +136,7 @@ static void gl3_DrawWallPart(line_t *l, side_t *s,
 }
 
 void gl3_DrawWall(seg_t *line, mobj_t *player) {
-  // Quad vertices
-  gl3_vert_t verts[4];
+  const gl3_img_t *top, *mid, *bottom;
 
   line_t *l = line->linedef;
   side_t *s = line->sidedef;
@@ -156,6 +151,10 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   ang2 = R_PointToAngleEx2(viewx, viewy, line->v2->x, line->v2->y);
   if (ang1-ang2 > ANG180)
     return;
+
+  top = gl3_GetWall(s->toptexture);
+  mid = gl3_GetWall(s->midtexture);
+  bottom = gl3_GetWall(s->bottomtexture);
 
   x1 = (float)line->v1->x*invFrac;
   y1 = (float)line->v1->y*invFrac;
@@ -180,12 +179,16 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   xoffset = (float)(s->textureoffset+line->offset)*invFrac;
   yoffset = (float)s->rowoffset*invFrac;
 
-  if (s->midtexture) gl3_DrawWallPart(l, s, dist, x1, y1, x2, y2, floorheight, ceilingheight,
-                                      xoffset, yoffset, s->midtexture);
-  if (backceilingheight < ceilingheight) gl3_DrawWallPart(l, s, dist, x1, y1, x2, y2,
-                                                          backceilingheight, ceilingheight,
-                                                          xoffset, yoffset, s->toptexture);
-  if (backfloorheight > floorheight) gl3_DrawWallPart(l, s, dist, x1, y1, x2, y2,
-                                                      floorheight, backfloorheight,
-                                                      xoffset, yoffset, s->bottomtexture);
+  if (s->midtexture)
+    gl3_DrawWallPart(l, s, mid, dist, x1, y1, x2, y2,
+                     floorheight, ceilingheight,
+                     xoffset, yoffset);
+  if (backceilingheight < ceilingheight)
+    gl3_DrawWallPart(l, s, top, dist, x1, y1, x2, y2,
+                     backceilingheight, ceilingheight,
+                     xoffset, backceilingheight-ceilingheight+yoffset);
+  if (backfloorheight > floorheight)
+    gl3_DrawWallPart(l, s, bottom, dist, x1, y1, x2, y2,
+                     floorheight, backfloorheight,
+                     xoffset, yoffset);
 }

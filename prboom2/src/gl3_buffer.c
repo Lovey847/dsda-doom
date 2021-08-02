@@ -48,13 +48,13 @@ static void SetupVAO(GLuint vao) {
                                 4, GL_FLOAT, GL_FALSE,
                                 sizeof(gl3_vert_t), NULL));
   GL3(gl3_glVertexAttribIPointer(1,
-                                 2, GL_UNSIGNED_SHORT,
+                                 2, GL_SHORT,
                                  sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, imgcoord)));
   GL3(gl3_glVertexAttribIPointer(2,
-                                 2, GL_UNSIGNED_SHORT,
+                                 2, GL_SHORT,
                                  sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, imgsize)));
   GL3(gl3_glVertexAttribPointer(3,
-                                2, GL_UNSIGNED_SHORT, GL_FALSE,
+                                2, GL_SHORT, GL_FALSE,
                                 sizeof(gl3_vert_t), (void*)offsetof(gl3_vert_t, coord)));
   GL3(gl3_glVertexAttribIPointer(4,
                                  1, GL_UNSIGNED_INT,
