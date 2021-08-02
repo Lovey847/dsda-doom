@@ -180,14 +180,10 @@ void gl3_FlushBuffers(void) {
     // Enable depth buffer
     GL3(glDepthFunc(GL_LESS));
 
-    // Set viewport
-    GL3(glViewport(viewwindowx, SCREENHEIGHT-viewheight-viewwindowy, scaledviewwidth, viewheight));
-
     GL3(gl3_glUseProgram(gl3_shaders[GL3_SHADER_WALL].program));
     GL3(glDrawElements(GL_TRIANGLES, curind, GL_UNSIGNED_SHORT, NULL));
 
     GL3(glDepthFunc(GL_ALWAYS));
-    GL3(glViewport(0, 0, SCREENWIDTH, SCREENHEIGHT));
     break;
 
   default: lprintf(LO_WARN, "gl3_FlushBuffers: Unknown buffer active!? (%d)\n", curbuf); return;

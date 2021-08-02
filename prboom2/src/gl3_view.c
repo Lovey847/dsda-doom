@@ -87,6 +87,7 @@ void gl3_SetViewMatrices(mobj_t *player) {
   memcpy(gl3_shaderdata.projmat, identmat, sizeof(gl3_shaderdata.projmat));
   gl3_shaderdata.projmat[0][0] = projdist/render_ratio;
   gl3_shaderdata.projmat[1][1] = projdist;
+  gl3_shaderdata.projmat[2][1] = (float)(SCREENHEIGHT - centery*2)/(float)SCREENHEIGHT;
   gl3_shaderdata.projmat[2][2] = (farclip+nearclip*2.f)/farclip;
   gl3_shaderdata.projmat[3][2] = -nearclip*2.f;
   gl3_shaderdata.projmat[2][3] = 1.f;
@@ -145,12 +146,6 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   float floorheight, ceilingheight;
   float dx, dy, dist;
   float xoffset, yoffset;
-  angle_t ang1, ang2;
-
-  ang1 = R_PointToAngleEx2(viewx, viewy, line->v1->x, line->v1->y);
-  ang2 = R_PointToAngleEx2(viewx, viewy, line->v2->x, line->v2->y);
-  if (ang1-ang2 > ANG180)
-    return;
 
   top = gl3_GetWall(s->toptexture);
   mid = gl3_GetWall(s->midtexture);

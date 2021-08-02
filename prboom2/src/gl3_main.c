@@ -341,5 +341,21 @@ void gl3_bsp_AddLine(seg_t *line) {
   // Render from the players POV
   mobj_t *p = players[displayplayer].mo;
 
+  // Make sure wall should be drawn
+  fixed_t ang1, ang2;
+
+  ang1 = R_PointToPseudoAngle(line->v1->px, line->v1->py);
+  ang2 = R_PointToPseudoAngle(line->v2->px, line->v2->py);
+
+  // Don't draw back of lines
+  if (ang1-ang2 >= ANG180) return;
+
+  // Mark line as visible
+  // TODO: Now I know why gl_clipper.c exists,
+  // it's for the automap!
+  // Properly clip these things! (sucks because
+  // I can't really take advantage of the automap)
+  line->linedef->flags |= ML_MAPPED;
+
   gl3_DrawWall(line, p);
 }
