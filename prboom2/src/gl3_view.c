@@ -151,20 +151,40 @@ void gl3_DrawWall(seg_t *line, mobj_t *player) {
   mid = gl3_GetWall(s->midtexture);
   bottom = gl3_GetWall(s->bottomtexture);
 
-  x1 = (float)line->v1->x*invFrac;
-  y1 = (float)line->v1->y*invFrac;
-  x2 = (float)line->v2->x*invFrac;
-  y2 = (float)line->v2->y*invFrac;
+  x1 = (float)line->v1->px*invFrac;
+  y1 = (float)line->v1->py*invFrac;
+  x2 = (float)line->v2->px*invFrac;
+  y2 = (float)line->v2->py*invFrac;
 
   floorheight = (float)line->frontsector->floorheight*invFrac;
   ceilingheight = (float)line->frontsector->ceilingheight*invFrac;
 
-  dx = (float)(line->v1->x-line->v2->x)*invFrac;
-  dy = (float)(line->v1->y-line->v2->y)*invFrac;
+  dx = x1-x2;
+  dy = y1-y2;
   dist = sqrtf(dx*dx + dy*dy);
 
   xoffset = (float)(s->textureoffset+line->offset)*invFrac;
   yoffset = (float)s->rowoffset*invFrac;
+
+  //////////////////////////////////
+  // HOW RW_SCALE WORKS:
+  //   First, R_StoreWallRange projects a line orthogonal to
+  //   the linedef, onto the linedef (the closest possible distance you could have to it),
+  //   then in R_ScaleFromGlobalAngle, the projected distance is
+  //   "anti-projected" by _dividing_ by
+  //   the cosine of the angle it wants to project onto the line
+  //   with, then to get the depth of that distance, the full distance
+  //   is multiplied with the cosine of the direction to the
+  //   point it's projecting to, then it divides half the viewwidth by
+  //   the depth.
+  //
+  //   The reason why it looks so confusing is because it reorders the operations,
+  //   instead of dividing the denominator, multiplying the denominator, then
+  //   dividing the numerator by the denominator, it multiplies the numerator by
+  //   what the denominator would be divided by (same effect), multiplies the denomator,
+  //   then divides the numerator by the denominator.
+  //
+  //   I hope this makes sense.
 
   // One sided line
   if (!line->backsector) {
