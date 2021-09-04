@@ -125,8 +125,7 @@ typedef struct
 
   // thinker_t for reversable actions
   void *floordata;    // jff 2/22/98 make thinkers on
-  void *ceilingdata;  // floors, ceilings, lighting,
-  void *lightingdata; // independent of one another
+  void *ceilingdata;  // floors and ceilings independent
 
   // jff 2/26/98 lockout machinery for stairbuilding
   int stairlock;   // -2 on first locked -1 after thinker done 0 normally
@@ -238,6 +237,7 @@ typedef struct line_s
   sector_t *frontsector; // Front and back sector.
   sector_t *backsector;
   int validcount;        // if == validcount, already checked
+  int validcount2;
   void *specialdata;     // thinker_t for reversable actions
   int tranlump;          // killough 4/11/98: translucency filter, -1 == none
   int firsttag,nexttag;  // killough 4/17/98: improves searches for tags.
@@ -422,6 +422,9 @@ typedef struct vissprite_s
   // hexen
   int pclass;                  // player class (used in translation)
   fixed_t floorclip;
+
+  // misc
+  int color;
 } vissprite_t;
 
 //
@@ -500,6 +503,7 @@ typedef struct polyobj_s
   int tag;                    // reference tag assigned in HereticEd
   int bbox[4];
   int validcount;
+  int validcount2;
   dboolean crush;              // should the polyobj attempt to crush mobjs?
   int seqType;
   fixed_t size;               // polyobj size (area of POLY_AREAUNIT == size of FRACUNIT)

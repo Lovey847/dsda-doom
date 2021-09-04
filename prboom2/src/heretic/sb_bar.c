@@ -240,7 +240,7 @@ void SB_Init(void)
     sb_full_inv_gem_xr = 269;
 
     // magic globals that ends up in the background
-    R_SetFloorNum(&grnrock, "FLOOR30"); // hexen_note: F_022
+    R_SetFloorNum(&grnrock, "FLOOR30");
     R_SetPatchNum(&brdr_t, "bordt");
     R_SetPatchNum(&brdr_b, "bordb");
     R_SetPatchNum(&brdr_l, "bordl");
@@ -317,7 +317,7 @@ void SB_Ticker(void)
     int delta;
     int curHealth;
 
-    if (heretic && leveltime & 1 && !(paused || (!demoplayback && menuactive && !netgame)))
+    if (heretic && leveltime & 1 && !(!demoplayback && menuactive && !netgame))
     {
         ChainWiggle = P_Random(pr_heretic) & 1;
     }
@@ -541,7 +541,7 @@ static int oldpieces = -1;
 
 void SB_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
 {
-    if (refresh || fullmenu || V_GetMode() == VID_MODEGL) SB_state = -1;
+    if (refresh || fullmenu || V_IsOpenGLMode()) SB_state = -1;
 
     if (!statusbaron)
     {
@@ -559,10 +559,6 @@ void SB_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
     {
         if (SB_state == -1)
         {
-            // Applies palette to backfill
-            if (V_GetMode() != VID_MODE8)
-              R_FillBackScreen();
-
             if (heretic)
             {
                 V_DrawNumPatch(0, 158, 0, LumpBARBACK, CR_DEFAULT, VPT_STRETCH);

@@ -103,7 +103,6 @@ void doom_printf(const char *, ...) __attribute__((format(printf,1,2)));
 
 extern int  key_forward;
 extern int  key_backward;
-extern int  autorun;           // always running?                   // phares
 
 extern int  defaultskill;      //jff 3/24/98 default skill
 extern dboolean haswolflevels;  //jff 4/18/98 wolf levels present
@@ -129,6 +128,9 @@ extern const char * comp_lev_str[];
 // with the same mouse behaviour as when recording,
 // but without having to be recording every time.
 extern int shorttics;
+
+// automatic pistol start when advancing from one level to the next
+extern int pistolstart;
 
 //e6y: for r_demo.c
 extern int longtics;

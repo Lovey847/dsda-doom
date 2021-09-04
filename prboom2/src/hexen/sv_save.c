@@ -28,9 +28,11 @@
 #include "r_main.h"
 #include "p_maputl.h"
 #include "p_enemy.h"
+#include "p_saveg.h"
 #include "hu_stuff.h"
 #include "lprintf.h"
 
+#include "hexen/a_action.h"
 #include "hexen/p_acs.h"
 #include "hexen/po_man.h"
 #include "hexen/sn_sonix.h"
@@ -91,7 +93,6 @@ static int TargetPlayerCount;
 
 extern int inv_ptr;
 extern int curpos;
-extern int localQuakeHappening[MAX_MAXPLAYERS];
 
 typedef struct
 {
@@ -117,7 +118,46 @@ static void FreeMapArchive(void)
     {
       free(map_archive[map].buffer);
       map_archive[map].buffer = NULL;
+      map_archive[map].size = 0;
     }
+}
+
+void SV_StoreMapArchive(byte **buffer)
+{
+  int i;
+
+  for (i = 0; i < MAX_MAPS; ++i)
+  {
+    CheckSaveGame(map_archive[i].size + sizeof(map_archive[i].size));
+
+    memcpy(*buffer, &map_archive[i].size, sizeof(map_archive[i].size));
+    *buffer += sizeof(map_archive[i].size);
+
+    if (map_archive[i].size)
+    {
+      memcpy(*buffer, map_archive[i].buffer, map_archive[i].size);
+      *buffer += map_archive[i].size;
+    }
+  }
+}
+
+void SV_RestoreMapArchive(byte **buffer)
+{
+  int i;
+
+  FreeMapArchive();
+
+  for (i = 0; i < MAX_MAPS; ++i)
+  {
+    memcpy(&map_archive[i].size, *buffer, sizeof(map_archive[i].size));
+    *buffer += sizeof(map_archive[i].size);
+
+    if (map_archive[i].size)
+    {
+      memcpy(map_archive[i].buffer, *buffer, map_archive[i].size);
+      *buffer += map_archive[i].size;
+    }
+  }
 }
 
 static dboolean SV_IsMobjThinker(thinker_t *th)
@@ -130,7 +170,7 @@ static void CheckBuffer(size_t size)
 {
   size_t delta = buffer_p - ma_p->buffer;
 
-  if (delta + size > ma_p->size)
+  while (delta + size > ma_p->size)
   {
     ma_p->size += 1024;
     ma_p->buffer = realloc(ma_p->buffer, ma_p->size);
@@ -375,11 +415,11 @@ static void StreamIn_mobj_t(mobj_t *str)
     // int health;
     str->health = SV_ReadLong();
 
-    // int movedir;
-    str->movedir = SV_ReadLong();
+    // short movedir;
+    str->movedir = SV_ReadWord();
 
-    // int movecount;
-    str->movecount = SV_ReadLong();
+    // short movecount;
+    str->movecount = SV_ReadWord();
 
     // struct mobj_s *target;
     i = SV_ReadLong();
@@ -522,10 +562,10 @@ static void StreamOut_mobj_t(mobj_t *str)
     SV_WriteLong(str->health);
 
     // int movedir;
-    SV_WriteLong(str->movedir);
+    SV_WriteWord(str->movedir);
 
     // int movecount;
-    SV_WriteLong(str->movecount);
+    SV_WriteWord(str->movecount);
 
     // struct mobj_s *target;
     if ((str->flags & MF_CORPSE) != 0)
@@ -1346,7 +1386,6 @@ static void UnarchiveWorld(void)
         sec->seqType = SV_ReadWord();
         sec->ceilingdata = 0;
         sec->floordata = 0;
-        sec->lightingdata = 0;
         sec->soundtarget = 0;
     }
     for (i = 0, li = lines; i < numlines; i++, li++)
@@ -1931,6 +1970,9 @@ void SV_MapTeleport(int map, int position)
     int oldKeys[NUMCARDS];
     int oldPieces = 0;
     int bestWeapon;
+
+    memset(oldKeys, 0, sizeof(oldKeys));
+    memset(oldWeaponowned, 0, sizeof(oldWeaponowned));
 
     if (!deathmatch)
     {

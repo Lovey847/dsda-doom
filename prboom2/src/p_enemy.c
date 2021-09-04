@@ -823,7 +823,7 @@ static dboolean P_LookForPlayers(mobj_t *actor, dboolean allaround)
   player_t *player;
   int stop, stopc, c;
 
-  if (raven) return Heretic_P_LookForPlayers(actor, allaround);
+  if (raven) return Raven_P_LookForPlayers(actor, allaround);
 
   if (actor->flags & MF_FRIEND)
   {  // killough 9/9/98: friendly monsters go about players differently
@@ -1324,19 +1324,19 @@ void A_Chase(mobj_t *actor)
   // make active sound
   if (actor->info->activesound && P_Random(pr_see) < 3)
   {
-    if (actor->type == HERETIC_MT_WIZARD && P_Random(pr_heretic) < 128)
+    if (heretic && actor->type == HERETIC_MT_WIZARD && P_Random(pr_heretic) < 128)
     {
       S_StartSound(actor, actor->info->seesound);
     }
-    else if (actor->type == HERETIC_MT_SORCERER2)
+    else if (heretic && actor->type == HERETIC_MT_SORCERER2)
     {
       S_StartSound(NULL, actor->info->activesound);
     }
-    else if (actor->type == HEXEN_MT_BISHOP && P_Random(pr_hexen) < 128)
+    else if (hexen && actor->type == HEXEN_MT_BISHOP && P_Random(pr_hexen) < 128)
     {
       S_StartSound(actor, actor->info->seesound);
     }
-    else if (actor->type == HEXEN_MT_PIG)
+    else if (hexen && actor->type == HEXEN_MT_PIG)
     {
       S_StartSound(actor, hexen_sfx_pig_active1 + (P_Random(pr_hexen) & 1));
     }
@@ -1589,7 +1589,7 @@ void A_HeadAttack(mobj_t * actor)
     if (mo != NULL)
     {
       mo->z -= 32 * FRACUNIT;
-      mo->special1.m = target;
+      P_SetTarget(&mo->special1.m, target);
       mo->special2.i = 50;  // Timer for active sound
       mo->health = 20 * TICRATE;       // Duration
       S_StartSound(actor, heretic_sfx_hedat3);
@@ -1828,80 +1828,80 @@ static dboolean P_HealCorpse(mobj_t* actor, int radius, statenum_t healstate, sf
   int bx, by;
 
   if (actor->movedir != DI_NODIR)
+  {
+    // check for corpses to raise
+    viletryx =
+      actor->x + actor->info->speed*xspeed[actor->movedir];
+    viletryy =
+      actor->y + actor->info->speed*yspeed[actor->movedir];
+
+    xl = P_GetSafeBlockX(viletryx - bmaporgx - MAXRADIUS*2);
+    xh = P_GetSafeBlockX(viletryx - bmaporgx + MAXRADIUS*2);
+    yl = P_GetSafeBlockY(viletryy - bmaporgy - MAXRADIUS*2);
+    yh = P_GetSafeBlockY(viletryy - bmaporgy + MAXRADIUS*2);
+
+    vileobj = actor;
+    viletryradius = radius;
+    for (bx=xl ; bx<=xh ; bx++)
     {
-      // check for corpses to raise
-      viletryx =
-        actor->x + actor->info->speed*xspeed[actor->movedir];
-      viletryy =
-        actor->y + actor->info->speed*yspeed[actor->movedir];
-
-      xl = P_GetSafeBlockX(viletryx - bmaporgx - MAXRADIUS*2);
-      xh = P_GetSafeBlockX(viletryx - bmaporgx + MAXRADIUS*2);
-      yl = P_GetSafeBlockY(viletryy - bmaporgy - MAXRADIUS*2);
-      yh = P_GetSafeBlockY(viletryy - bmaporgy + MAXRADIUS*2);
-
-      vileobj = actor;
-      viletryradius = radius;
-      for (bx=xl ; bx<=xh ; bx++)
+      for (by=yl ; by<=yh ; by++)
+      {
+        // Call PIT_VileCheck to check
+        // whether object is a corpse
+        // that canbe raised.
+        if (!P_BlockThingsIterator(bx,by,PIT_VileCheck))
         {
-          for (by=yl ; by<=yh ; by++)
-            {
-              // Call PIT_VileCheck to check
-              // whether object is a corpse
-              // that canbe raised.
-              if (!P_BlockThingsIterator(bx,by,PIT_VileCheck))
-                {
-      mobjinfo_t *info;
+          mobjinfo_t *info;
 
-                  // got one!
-                  mobj_t* temp = actor->target;
-                  actor->target = corpsehit;
-                  A_FaceTarget(actor);
-                  actor->target = temp;
+          // got one!
+          mobj_t* temp = actor->target;
+          actor->target = corpsehit;
+          A_FaceTarget(actor);
+          actor->target = temp;
 
-                  P_SetMobjState(actor, healstate);
-                  S_StartSound(corpsehit, healsound);
-                  info = corpsehit->info;
+          P_SetMobjState(actor, healstate);
+          S_StartSound(corpsehit, healsound);
+          info = corpsehit->info;
 
-                  P_SetMobjState(corpsehit,info->raisestate);
+          P_SetMobjState(corpsehit,info->raisestate);
 
-                  if (comp[comp_vile])                              // phares
-                    corpsehit->height <<= 2;                        //   |
-                  else                                              //   V
-                    {
-                      corpsehit->height = info->height; // fix Ghost bug
-                      corpsehit->radius = info->radius; // fix Ghost bug
-                    }                                               // phares
+          if (comp[comp_vile])                              // phares
+            corpsehit->height <<= 2;                        //   |
+          else                                              //   V
+          {
+            corpsehit->height = info->height; // fix Ghost bug
+            corpsehit->radius = info->radius; // fix Ghost bug
+          }                                                 // phares
 
-      /* killough 7/18/98:
-       * friendliness is transferred from AV to raised corpse
-       */
-      corpsehit->flags =
-        (info->flags & ~MF_FRIEND) | (actor->flags & MF_FRIEND);
-      corpsehit->flags = corpsehit->flags | MF_RESSURECTED;//e6y
+          /* killough 7/18/98:
+          * friendliness is transferred from AV to raised corpse
+          */
+          corpsehit->flags =
+            (info->flags & ~MF_FRIEND) | (actor->flags & MF_FRIEND);
+          corpsehit->flags = corpsehit->flags | MF_RESSURECTED;//e6y
 
-      dsda_WatchResurrection(corpsehit);
+          dsda_WatchResurrection(corpsehit);
 
-		  if (!((corpsehit->flags ^ MF_COUNTKILL) & (MF_FRIEND | MF_COUNTKILL)))
-		    totallive++;
+          if (!((corpsehit->flags ^ MF_COUNTKILL) & (MF_FRIEND | MF_COUNTKILL)))
+            totallive++;
 
-                  corpsehit->health = info->spawnhealth;
-      P_SetTarget(&corpsehit->target, NULL);  // killough 11/98
+          corpsehit->health = info->spawnhealth;
+          P_SetTarget(&corpsehit->target, NULL);  // killough 11/98
 
-      if (mbf_features)
-        {         /* kilough 9/9/98 */
-          P_SetTarget(&corpsehit->lastenemy, NULL);
-          corpsehit->flags &= ~MF_JUSTHIT;
+          if (mbf_features)
+          {         /* kilough 9/9/98 */
+            P_SetTarget(&corpsehit->lastenemy, NULL);
+            corpsehit->flags &= ~MF_JUSTHIT;
+          }
+
+          /* killough 8/29/98: add to appropriate thread */
+          P_UpdateThinker(&corpsehit->thinker);
+
+          return true;
         }
-
-      /* killough 8/29/98: add to appropriate thread */
-      P_UpdateThinker(&corpsehit->thinker);
-
-                  return true;
-                }
-            }
-        }
+      }
     }
+  }
   return false;
 }
 
@@ -2383,80 +2383,84 @@ void A_Explode(mobj_t *thingy)
   damage = 128;
   distance = 128;
   damageSelf = true;
-  switch (thingy->type)
+
+  if (raven)
   {
-    case HERETIC_MT_FIREBOMB:      // Time Bombs
-    case HEXEN_MT_FIREBOMB:        // Time Bombs
-      thingy->z += 32 * FRACUNIT;
-      thingy->flags &= ~MF_SHADOW;
-      break;
-    case HERETIC_MT_MNTRFX2:       // Minotaur floor fire
-      damage = 24;
-      distance = damage;
-      break;
-    case HERETIC_MT_SOR2FX1:       // D'Sparil missile
-      damage = 80 + (P_Random(pr_heretic) & 31);
-      distance = damage;
-      break;
-    case HEXEN_MT_MNTRFX2:       // Minotaur floor fire
-      damage = 24;
-      break;
-    case HEXEN_MT_BISHOP:        // Bishop radius death
-      damage = 25 + (P_Random(pr_hexen) & 15);
-      break;
-    case HEXEN_MT_HAMMER_MISSILE:        // Fighter Hammer
-      damage = 128;
-      damageSelf = false;
-      break;
-    case HEXEN_MT_FSWORD_MISSILE:        // Fighter Runesword
-      damage = 64;
-      damageSelf = false;
-      break;
-    case HEXEN_MT_CIRCLEFLAME:   // Cleric Flame secondary flames
-      damage = 20;
-      damageSelf = false;
-      break;
-    case HEXEN_MT_SORCBALL1:     // Sorcerer balls
-    case HEXEN_MT_SORCBALL2:
-    case HEXEN_MT_SORCBALL3:
-      distance = 255;
-      damage = 255;
-      thingy->args[0] = 1; // don't play bounce
-      break;
-    case HEXEN_MT_SORCFX1:       // Sorcerer spell 1
-      damage = 30;
-      break;
-    case HEXEN_MT_SORCFX4:       // Sorcerer spell 4
-      damage = 20;
-      break;
-    case HEXEN_MT_TREEDESTRUCTIBLE:
-      damage = 10;
-      break;
-    case HEXEN_MT_DRAGON_FX2:
-      damage = 80;
-      damageSelf = false;
-      break;
-    case HEXEN_MT_MSTAFF_FX:
-      damage = 64;
-      distance = 192;
-      damageSelf = false;
-      break;
-    case HEXEN_MT_MSTAFF_FX2:
-      damage = 80;
-      distance = 192;
-      damageSelf = false;
-      break;
-    case HEXEN_MT_POISONCLOUD:
-      damage = 4;
-      distance = 40;
-      break;
-    case HEXEN_MT_ZXMAS_TREE:
-    case HEXEN_MT_ZSHRUB2:
-      damage = 30;
-      distance = 64;
-      break;
-    default:
-      break;
+    switch (thingy->type)
+    {
+      case HERETIC_MT_FIREBOMB:      // Time Bombs
+      case HEXEN_MT_FIREBOMB:        // Time Bombs
+        thingy->z += 32 * FRACUNIT;
+        thingy->flags &= ~MF_SHADOW;
+        break;
+      case HERETIC_MT_MNTRFX2:       // Minotaur floor fire
+        damage = 24;
+        distance = damage;
+        break;
+      case HERETIC_MT_SOR2FX1:       // D'Sparil missile
+        damage = 80 + (P_Random(pr_heretic) & 31);
+        distance = damage;
+        break;
+      case HEXEN_MT_MNTRFX2:       // Minotaur floor fire
+        damage = 24;
+        break;
+      case HEXEN_MT_BISHOP:        // Bishop radius death
+        damage = 25 + (P_Random(pr_hexen) & 15);
+        break;
+      case HEXEN_MT_HAMMER_MISSILE:        // Fighter Hammer
+        damage = 128;
+        damageSelf = false;
+        break;
+      case HEXEN_MT_FSWORD_MISSILE:        // Fighter Runesword
+        damage = 64;
+        damageSelf = false;
+        break;
+      case HEXEN_MT_CIRCLEFLAME:   // Cleric Flame secondary flames
+        damage = 20;
+        damageSelf = false;
+        break;
+      case HEXEN_MT_SORCBALL1:     // Sorcerer balls
+      case HEXEN_MT_SORCBALL2:
+      case HEXEN_MT_SORCBALL3:
+        distance = 255;
+        damage = 255;
+        thingy->args[0] = 1; // don't play bounce
+        break;
+      case HEXEN_MT_SORCFX1:       // Sorcerer spell 1
+        damage = 30;
+        break;
+      case HEXEN_MT_SORCFX4:       // Sorcerer spell 4
+        damage = 20;
+        break;
+      case HEXEN_MT_TREEDESTRUCTIBLE:
+        damage = 10;
+        break;
+      case HEXEN_MT_DRAGON_FX2:
+        damage = 80;
+        damageSelf = false;
+        break;
+      case HEXEN_MT_MSTAFF_FX:
+        damage = 64;
+        distance = 192;
+        damageSelf = false;
+        break;
+      case HEXEN_MT_MSTAFF_FX2:
+        damage = 80;
+        distance = 192;
+        damageSelf = false;
+        break;
+      case HEXEN_MT_POISONCLOUD:
+        damage = 4;
+        distance = 40;
+        break;
+      case HEXEN_MT_ZXMAS_TREE:
+      case HEXEN_MT_ZSHRUB2:
+        damage = 30;
+        distance = 64;
+        break;
+      default:
+        break;
+    }
   }
 
   P_RadiusAttack(thingy, thingy->target, damage, distance, damageSelf);
@@ -3902,7 +3906,7 @@ void A_MummyAttack2(mobj_t * actor)
 
     if (mo != NULL)
     {
-        mo->special1.m = actor->target;
+        P_SetTarget(&mo->special1.m, actor->target);
     }
 }
 
@@ -4620,7 +4624,7 @@ void A_MakePod(mobj_t * actor)
     P_ThrustMobj(mo, P_Random(pr_heretic) << 24, (fixed_t) (4.5 * FRACUNIT));
     S_StartSound(mo, heretic_sfx_newpod);
     actor->special1.i++;          // Increment generated pod count
-    mo->special2.m = actor;       // Link the generator to the pod
+    P_SetTarget(&mo->special2.m, actor);       // Link the generator to the pod
     return;
 }
 
@@ -4979,7 +4983,7 @@ dboolean Heretic_P_LookForMonsters(mobj_t * actor)
     return (false);
 }
 
-dboolean Heretic_P_LookForPlayers(mobj_t * actor, dboolean allaround)
+dboolean Raven_P_LookForPlayers(mobj_t * actor, dboolean allaround)
 {
     int c;
     int stop;
@@ -6147,7 +6151,7 @@ void A_BishopAttack2(mobj_t * actor)
     mo = P_SpawnMissile(actor, actor->target, HEXEN_MT_BISH_FX);
     if (mo)
     {
-        mo->special1.m = actor->target;
+        P_SetTarget(&mo->special1.m, actor->target);
         mo->special2.i = 16;      // High word == x/y, Low word == z
     }
     actor->special1.i--;
@@ -6385,8 +6389,10 @@ static void DragonSeek(mobj_t * actor, angle_t thresh, angle_t turnMax)
             if (bestArg != -1)
             {
                 search = -1;
-                actor->special1.m =
-                    P_FindMobjFromTID(target->args[bestArg], &search);
+                P_SetTarget(
+                  &actor->special1.m,
+                  P_FindMobjFromTID(target->args[bestArg], &search)
+                );
             }
         }
         else
@@ -6397,8 +6403,10 @@ static void DragonSeek(mobj_t * actor, angle_t thresh, angle_t turnMax)
             }
             while (!target->args[i]);
             search = -1;
-            actor->special1.m =
-                P_FindMobjFromTID(target->args[i], &search);
+            P_SetTarget(
+              &actor->special1.m,
+              P_FindMobjFromTID(target->args[i], &search)
+            );
         }
     }
 }
@@ -6410,7 +6418,10 @@ void A_DragonInitFlight(mobj_t * actor)
     search = -1;
     do
     {                           // find the first tid identical to the dragon's tid
-        actor->special1.m = P_FindMobjFromTID(actor->tid, &search);
+        P_SetTarget(
+          &actor->special1.m,
+          P_FindMobjFromTID(actor->tid, &search)
+        );
         if (search == -1)
         {
             P_SetMobjState(actor, actor->info->spawnstate);
@@ -7672,7 +7683,7 @@ void A_SorcOffense1(mobj_t * actor)
     if (mo)
     {
         P_SetTarget(&mo->target, parent);
-        mo->special1.m = parent->target;
+        P_SetTarget(&mo->special1.m, parent->target);
         mo->args[4] = BOUNCE_TIME_UNIT;
         mo->args[3] = 15;       // Bounce time in seconds
     }
@@ -7680,7 +7691,7 @@ void A_SorcOffense1(mobj_t * actor)
     if (mo)
     {
         P_SetTarget(&mo->target, parent);
-        mo->special1.m = parent->target;
+        P_SetTarget(&mo->special1.m, parent->target);
         mo->args[4] = BOUNCE_TIME_UNIT;
         mo->args[3] = 15;       // Bounce time in seconds
     }
@@ -8237,22 +8248,22 @@ void KSpiritInit(mobj_t * spirit, mobj_t * korax)
 
     spirit->health = KORAX_SPIRIT_LIFETIME;
 
-    spirit->special1.m = korax;     // Swarm around korax
+    P_SetTarget(&spirit->special1.m, korax);     // Swarm around korax
     spirit->special2.i = 32 + (P_Random(pr_hexen) & 7);   // Float bob index
     spirit->args[0] = 10;       // initial turn value
     spirit->args[1] = 0;        // initial look angle
 
     // Spawn a tail for spirit
     tail = P_SpawnMobj(spirit->x, spirit->y, spirit->z, HEXEN_MT_HOLY_TAIL);
-    tail->special2.m = spirit;      // parent
+    P_SetTarget(&tail->special2.m, spirit);      // parent
     for (i = 1; i < 3; i++)
     {
         next = P_SpawnMobj(spirit->x, spirit->y, spirit->z, HEXEN_MT_HOLY_TAIL);
         P_SetMobjState(next, next->info->spawnstate + 1);
-        tail->special1.m = next;
+        P_SetTarget(&tail->special1.m, next);
         tail = next;
     }
-    tail->special1.m = NULL;         // last tail bit
+    P_SetTarget(&tail->special1.m, NULL);         // last tail bit
 }
 
 void A_KoraxDecide(mobj_t * actor)

@@ -71,6 +71,7 @@
 #include "i_system.h"
 #include "p_maputl.h"
 #include "p_map.h"
+#include "p_setup.h"
 #include "i_video.h"
 #include "info.h"
 #include "r_main.h"
@@ -79,6 +80,7 @@
 #include "am_map.h"
 #include "hu_tracers.h"
 #include "dsda.h"
+#include "dsda/settings.h"
 #ifdef GL_DOOM
 #include "gl_struct.h"
 #include "gl_intern.h"
@@ -124,8 +126,6 @@ int hudadd_crosshair_lock_target;
 int movement_strafe50;
 int movement_shorttics;
 int movement_strafe50onturns;
-int movement_mouselook;
-int movement_mousenovert;
 int movement_mouseinvert;
 int movement_maxviewpitch;
 int movement_mousestrafedivisor;
@@ -345,7 +345,7 @@ void G_SkipDemoStop(void)
   S_RestartMusic();
 
 #ifdef GL_DOOM
-  if (V_LegacyGLActive()) {
+  if (V_IsLegacyOpenGLMode()) {
     gld_PreprocessLevel();
   }
 #endif
@@ -406,8 +406,11 @@ int G_GotoNextLevel(void)
   };
   int epsd;
   int map = -1;
-
   int changed = false;
+
+  if (hexen)
+    map = P_GetMapNextMap(gamemap);
+
   if (gamemapinfo != NULL)
   {
     const char *n;
@@ -457,10 +460,6 @@ int G_GotoNextLevel(void)
       epsd = next / 10;
       map = next % 10;
     }
-    else if (hexen)
-    {
-      // HEXEN_TODO: go to next level
-    }
     else if (gamemode == commercial)
     {
       epsd = 1;
@@ -499,7 +498,7 @@ void M_ChangeMouseLook(void)
 
 #ifdef GL_DOOM
   if (gl_skymode == skytype_auto)
-    gl_drawskys = (movement_mouselook ? skytype_skydome : skytype_standard);
+    gl_drawskys = (dsda_MouseLook() ? skytype_skydome : skytype_standard);
   else
     gl_drawskys = gl_skymode;
 #endif // GL_DOOM
@@ -513,7 +512,7 @@ void M_ChangeMaxViewPitch(void)
 {
   int max_up, max_dn, angle_up, angle_dn;
 
-  if (V_GLActive())
+  if (V_IsOpenGLMode())
   {
     max_up = movement_maxviewpitch;
     max_dn = movement_maxviewpitch;
@@ -538,10 +537,6 @@ void M_ChangeScreenMultipleFactor(void)
   V_ChangeScreenResolution();
 }
 
-dboolean GetMouseLook(void)
-{
-  return movement_mouselook;
-}
 dboolean HaveMouseLook(void)
 {
   return (viewpitch != 0);

@@ -514,7 +514,7 @@ dboolean P_StartACS(int number, int map, byte * args, mobj_t * activator,
     memset(script, 0, sizeof(acs_t));
     script->number = number;
     script->infoIndex = infoIndex;
-    script->activator = activator;
+    P_SetTarget(&script->activator, activator);
     script->line = line;
     script->side = side;
     script->ip = ACSInfo[infoIndex].offset;
@@ -691,6 +691,8 @@ void P_TagFinished(int tag)
 {
     int i;
 
+    if (!hexen) return;
+
     if (TagBusy(tag) == true)
     {
         return;
@@ -745,8 +747,7 @@ static dboolean TagBusy(int tag)
     while ((sectorIndex = P_FindSectorFromTag(tag, sectorIndex)) >= 0)
     {
         if (sectors[sectorIndex].floordata ||
-            sectors[sectorIndex].ceilingdata ||
-            sectors[sectorIndex].lightingdata)
+            sectors[sectorIndex].ceilingdata)
         {
             return true;
         }

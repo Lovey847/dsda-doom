@@ -442,10 +442,6 @@ static void ST_refreshBackground(void)
     {
       flags = VPT_ALIGN_BOTTOM;
 
-      // Applies palette to backfill
-      if (V_GetMode() != VID_MODE8)
-        R_FillBackScreen();
-
       V_DrawNumPatch(ST_X, y, BG, stbarbg.lumpnum, CR_DEFAULT, flags);
       if (!deathmatch)
       {
@@ -795,15 +791,26 @@ static void ST_doPaletteStuff(void)
 
   if (cnt)
     {
-      palette = (cnt+7)>>3;
-      if (palette >= NUMREDPALS)
-        palette = NUMREDPALS-1;
+      // In Chex Quest, the player never sees red.  Instead, the
+      // radiation suit palette is used to tint the screen green,
+      // as though the player is being covered in goo by an
+      // attacking flemoid.
+      if (gamemission == chex)
+      {
+        palette = RADIATIONPAL;
+      }
+      else
+      {
+        palette = (cnt+7)>>3;
+        if (palette >= NUMREDPALS)
+          palette = NUMREDPALS-1;
 
-      /* cph 2006/08/06 - if in the menu, reduce the red tint - navigating to
-       * load a game can be tricky if the screen is all red */
-      if (menuactive) palette >>=1;
+        /* cph 2006/08/06 - if in the menu, reduce the red tint - navigating to
+         * load a game can be tricky if the screen is all red */
+        if (menuactive) palette >>=1;
 
-      palette += STARTREDPALS;
+        palette += STARTREDPALS;
+      }
     }
   else
     if (dsda_BonusPalette() && plyr->bonuscount)
@@ -819,24 +826,8 @@ static void ST_doPaletteStuff(void)
       else
         palette = 0;
 
-  // In Chex Quest, the player never sees red.  Instead, the
-  // radiation suit palette is used to tint the screen green,
-  // as though the player is being covered in goo by an
-  // attacking flemoid.
-
-  if (dsda_PowerPalette() && gamemission == chex
-    && palette >= STARTREDPALS && palette < STARTREDPALS + NUMREDPALS)
-  {
-    palette = RADIATIONPAL;
-  }
-
   if (palette != st_palette) {
     V_SetPalette(st_palette = palette); // CPhipps - use new palette function
-
-    // have to redraw the entire status bar when the palette changes
-    // in truecolor modes - POPE
-    if (V_GetMode() == VID_MODE32)
-      st_firsttime = true;
   }
 }
 
@@ -948,7 +939,7 @@ void ST_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
   ST_doPaletteStuff();  // Do red-/gold-shifts from damage/items
 
   if (statusbaron) {
-    if (st_firsttime || V_GLActive())
+    if (st_firsttime || (V_IsOpenGLMode()))
     {
       /* If just after ST_Start(), refresh all */
       st_firsttime = false;

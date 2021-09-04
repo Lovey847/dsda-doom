@@ -61,6 +61,8 @@
 #include "d_main.h"
 
 #include "dsda/input.h"
+#include "dsda/map_format.h"
+#include "dsda/settings.h"
 
 //jff 1/7/98 default automap colors added
 int mapcolor_back;    // map background
@@ -389,8 +391,6 @@ mline_t thintriangle_guy[] =
 };
 #undef R
 #define NUMTHINTRIANGLEGUYLINES (sizeof(thintriangle_guy)/sizeof(mline_t))
-
-int ddt_cheating = 0;         // killough 2/7/98: make global, rename to ddt_*
 
 static int leveljuststarted = 1;       // kluge until AM_LevelInit() is called
 
@@ -1528,56 +1528,6 @@ static void AM_drawGrid(int color)
 }
 
 //
-// AM_DoorColor()
-//
-// Returns the 'color' or key needed for a door linedef type
-//
-// Passed the type of linedef, returns:
-//   -1 if not a keyed door
-//    0 if a red key required
-//    1 if a blue key required
-//    2 if a yellow key required
-//    3 if a multiple keys required
-//
-// jff 4/3/98 add routine to get color of generalized keyed door
-//
-static int AM_DoorColor(int type)
-{
-  if (heretic && type > 34) return -1;
-
-  if (hexen)
-  {
-    if (type == 13 || type == 83)
-      return 2;
-
-    return -1;
-  }
-
-  if (GenLockedBase <= type && type< GenDoorBase)
-  {
-    type -= GenLockedBase;
-    type = (type & LockedKey) >> LockedKeyShift;
-    if (!type || type==7)
-      return 3;  //any or all keys
-    else return (type-1)%3;
-  }
-  switch (type)  // closed keyed door
-  {
-    case 26: case 32: case 99: case 133:
-      /*bluekey*/
-      return 1;
-    case 27: case 34: case 136: case 137:
-      /*yellowkey*/
-      return 2;
-    case 28: case 33: case 134: case 135:
-      /*redkey*/
-      return 0;
-    default:
-      return -1; //not a keyed door
-  }
-}
-
-//
 // Determines visible lines, draws them.
 // This is LineDef based, not LineSeg based.
 //
@@ -1626,16 +1576,16 @@ static void AM_drawWalls(void)
     }
 
     // if line has been seen or IDDT has been used
-    if (ddt_cheating || (lines[i].flags & ML_MAPPED))
+    if (dsda_RevealAutomap() || (lines[i].flags & ML_MAPPED))
     {
-      if ((lines[i].flags & ML_DONTDRAW) && !ddt_cheating)
+      if ((lines[i].flags & ML_DONTDRAW) && !dsda_RevealAutomap())
         continue;
       {
         /* cph - show keyed doors and lines */
         int amd;
         if (((*mapcolor_bdor_p) || (*mapcolor_ydor_p) || (*mapcolor_rdor_p)) &&
             !(lines[i].flags & ML_SECRET) &&    /* non-secret */
-          (amd = AM_DoorColor(lines[i].special)) != -1
+          (amd = dsda_DoorType(i)) != -1
         )
         {
           {
@@ -1665,27 +1615,11 @@ static void AM_drawWalls(void)
           }
         }
       }
-      if /* jff 4/23/98 add exit lines to automap */
-        (
-          (*mapcolor_exit_p) &&
-          (
-            (hexen && (lines[i].special == 74 || lines[i].special == 75)) ||
-            (
-              !hexen &&
-              (
-                lines[i].special==11 ||
-                lines[i].special==52 ||
-                lines[i].special==197 ||
-                lines[i].special==51  ||
-                lines[i].special==124 ||
-                lines[i].special==198
-              )
-            )
-          )
-        ) {
-          AM_drawMline(&l, (*mapcolor_exit_p)); /* exit line */
-          continue;
-        }
+      if ((*mapcolor_exit_p) && dsda_IsExitLine(i))
+      { /* jff 4/23/98 add exit lines to automap */
+        AM_drawMline(&l, (*mapcolor_exit_p));
+        continue;
+      }
 
       if (!lines[i].backsector)
       {
@@ -1711,23 +1645,7 @@ static void AM_drawWalls(void)
       else /* now for 2S lines */
       {
         // jff 1/10/98 add color change for all teleporter types
-        if
-        (
-          (*mapcolor_tele_p) && !(lines[i].flags & ML_SECRET) &&
-          (
-            (hexen && (lines[i].special == 70 || lines[i].special == 71)) ||
-            (
-              !hexen &&
-              (
-                lines[i].special == 39 ||
-                (
-                  !heretic &&
-                  (lines[i].special == 97 || lines[i].special == 125 || lines[i].special == 126)
-                )
-              )
-            )
-          )
-        )
+        if ((*mapcolor_tele_p) && !(lines[i].flags & ML_SECRET) && dsda_IsTeleportLine(i))
         { // teleporters
           AM_drawMline(&l, (*mapcolor_tele_p));
         }
@@ -1778,7 +1696,7 @@ static void AM_drawWalls(void)
         {
           AM_drawMline(&l, (*mapcolor_cchg_p)); // ceiling level change
         }
-        else if ((*mapcolor_flat_p) && ddt_cheating)
+        else if ((*mapcolor_flat_p) && dsda_RevealAutomap())
         {
           AM_drawMline(&l, (*mapcolor_flat_p)); //2S lines that appear only in IDDT
         }
@@ -1909,7 +1827,7 @@ static void AM_drawPlayers(void)
   fixed_t scale;
 
 #if defined(HAVE_LIBSDL2_IMAGE) && defined(GL_DOOM)
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     if (map_things_appearance == map_things_appearance_icon)
       return;
@@ -1930,7 +1848,7 @@ static void AM_drawPlayers(void)
     else
       AM_SetMPointFloatValue(&pt);
 
-    if (ddt_cheating)
+    if (dsda_RevealAutomap())
       AM_drawLineCharacter(cheat_player_arrow, NUMCHEATPLYRLINES, scale, viewangle, (*mapcolor_sngl_p), pt.x, pt.y);
     else
       AM_drawLineCharacter(player_arrow, numplyrlines, scale, viewangle, (*mapcolor_sngl_p), pt.x, pt.y);
@@ -2031,7 +1949,7 @@ static void AM_ProcessNiceThing(mobj_t* mobj, angle_t angle, fixed_t x, fixed_t 
     {SPR_BFS1, am_icon_bullet, 12, 0, 119, 255, 111},
     {SPR_BFE1, am_icon_bullet, 12, 0, 119, 255, 111},
 
-    {NUMSPRITES}
+    {DOOM_NUMSPRITES}
   };
 
   need_shadow = true;
@@ -2085,7 +2003,7 @@ static void AM_ProcessNiceThing(mobj_t* mobj, angle_t angle, fixed_t x, fixed_t 
   else
   {
     i = 0;
-    while (icons[i].sprite < NUMSPRITES)
+    while (icons[i].sprite < DOOM_NUMSPRITES)
     {
       if (mobj->sprite == icons[i].sprite)
       {
@@ -2160,7 +2078,7 @@ static void AM_DrawNiceThings(void)
   }
 
   // walls
-  if (ddt_cheating == 2)
+  if (dsda_RevealAutomap() == 2)
   {
     // for all sectors
     for (i = 0; i < numsectors; i++)
@@ -2245,7 +2163,7 @@ static void AM_drawThings(void)
   mobj_t* t;
 
 #if defined(HAVE_LIBSDL2_IMAGE) && defined(GL_DOOM)
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     if (map_things_appearance == map_things_appearance_icon)
     {
@@ -2255,7 +2173,7 @@ static void AM_drawThings(void)
   }
 #endif
 
-  if (ddt_cheating != 2)
+  if (dsda_RevealAutomap() != 2)
     return;
 
   // for all sectors
@@ -2381,7 +2299,7 @@ static void AM_drawMarks(void)
   char namebuf[16] = "AMMNUM0";
 
 #if defined(HAVE_LIBSDL2_IMAGE) && defined(GL_DOOM)
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     if (map_things_appearance == map_things_appearance_icon)
       return;
@@ -2411,7 +2329,7 @@ static void AM_drawMarks(void)
         p.fy = CYMTOF_F(p.fy) - (float)markpoints[i].h * SCREENHEIGHT / 200.0f / 2.0f;
       }
 
-      if (V_GLActive() ?
+      if (V_IsOpenGLMode() ?
           p.y < f_y + f_h && p.y + markpoints[i].h * SCREENHEIGHT / 200 >= f_y :
           p.y < f_y + f_h && p.y >= f_y)
       {
@@ -2522,7 +2440,7 @@ void M_ChangeMapGridSize(void)
 void M_ChangeMapTextured(void)
 {
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     gld_ProcessTexturedMap();
   }
@@ -2531,7 +2449,7 @@ void M_ChangeMapTextured(void)
 
 void M_ChangeMapMultisamling(void)
 {
-  if (!raven && map_use_multisamling && !V_GLActive())
+  if (!raven && map_use_multisamling && V_IsSoftwareMode())
   {
     V_InitFlexTranTable();
   }
@@ -2546,7 +2464,7 @@ void M_ChangeMapMultisamling(void)
 void AM_drawSubsectors(void)
 {
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     gld_MapDrawSubsectors(plr, f_x, f_y, m_x, m_y, f_w, f_h, scale_mtof);
   }
@@ -2589,7 +2507,7 @@ static void AM_setFrameVariables(void)
 
   // The OpenGL3 renderer attempts to emulate how
   // the software renderer would draw the automap
-  am_frame.precise = V_LegacyGLActive();
+  am_frame.precise = (V_IsLegacyOpenGLMode());
 }
 
 //
@@ -2620,7 +2538,7 @@ void AM_Drawer (void)
   AM_setFrameVariables();
 
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     // do not use multisampling in automap mode if map_use_multisamling 0
     gld_MultisamplingSet();
@@ -2643,7 +2561,7 @@ void AM_Drawer (void)
   AM_drawCrosshair((*mapcolor_hair_p));   //jff 1/7/98 default crosshair color
 
 #if defined(GL_DOOM)
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     gld_DrawMapLines();
     M_ArrayClear(&map_lines);
@@ -2658,10 +2576,4 @@ void AM_Drawer (void)
 #endif
 
   AM_drawMarks();
-}
-
-// [crispy] reset IDDT cheat when re-starting map during demo recording
-void AM_ResetIDDTcheat(void)
-{
-  ddt_cheating = 0;
 }

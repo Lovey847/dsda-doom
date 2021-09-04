@@ -39,6 +39,9 @@ set(LUMPS
     lumps/crblue2.lmp
     lumps/crorange.lmp
     lumps/cryellow.lmp
+    lumps/crblack.lmp
+    lumps/crpurple.lmp
+    lumps/crwhite.lmp
 )
 
 set(COLORMAPS
@@ -55,6 +58,7 @@ set(TABLES
     lumps/nervebex.lmp
     lumps/glshadow.lmp
     lumps/glfp.lmp
+    lumps/glfp_fuzz.lmp
     lumps/glvp.lmp
     lumps/-prbhud-.lmp
     lumps/m_ammo.lmp
@@ -199,6 +203,10 @@ set(GRAPHICS
     graphics/cross1.ppm
     graphics/cross2.ppm
     graphics/cross3.ppm
+    graphics/cross4.ppm
+    graphics/cross5.ppm
+    graphics/cross6.ppm
+    graphics/cross7.ppm
 )
 
 set(FLATS

@@ -48,6 +48,8 @@ side_t    *sidedef;
 line_t    *linedef;
 sector_t  *frontsector;
 sector_t  *backsector;
+sector_t  *poly_frontsector;
+dboolean   poly_add_line;
 drawseg_t *ds_p;
 
 // killough 4/7/98: indicates doors closed wrt automap bugfix:
@@ -368,7 +370,7 @@ static void R_AddLine (seg_t *line)
   curline = line;
 
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     angle1 = R_PointToPseudoAngle(line->v1->x, line->v1->y);
     angle2 = R_PointToPseudoAngle(line->v2->x, line->v2->y);
@@ -422,7 +424,7 @@ static void R_AddLine (seg_t *line)
     gld_AddWall(curline);
 
     return;
-  } else if (V_GL3Active()) {
+  } else if (V_IsOpenGL3Mode()) {
     gl3_bsp_AddLine(line);
     return;
   }
@@ -539,7 +541,7 @@ static dboolean R_CheckBBox(const fixed_t *bspcoord)
   check = checkcoord[boxpos];
 
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     angle1 = R_PointToPseudoAngle(bspcoord[check[0]], bspcoord[check[1]]);
     angle2 = R_PointToPseudoAngle(bspcoord[check[2]], bspcoord[check[3]]);
@@ -622,7 +624,7 @@ static void R_Subsector(int num)
   currentsubsectornum = num;
 
 #ifdef GL_DOOM
-  if (!V_GLActive() || !gl_use_stencil || sub->sector->validcount != validcount)
+  if (V_IsSoftwareMode() || !gl_use_stencil || sub->sector->validcount != validcount)
 #endif
   {
     frontsector = sub->sector;
@@ -666,7 +668,7 @@ static void R_Subsector(int num)
   // New algo can handle fake flats and ceilings
   // much more correctly and fastly the the original
 #ifdef GL_DOOM
-    if (V_LegacyGLActive())
+    if (V_IsLegacyOpenGLMode())
     {
       // check if the sector is faked
       sector_t *tmpsec = NULL;
@@ -778,7 +780,7 @@ static void R_Subsector(int num)
     R_AddSprites(sub, (floorlightlevel+ceilinglightlevel)/2);
 
 #ifdef GL_DOOM
-    if (V_LegacyGLActive())
+    if (V_IsLegacyOpenGLMode())
       gld_AddPlane(num, floorplane, ceilingplane);
 #endif
   }
@@ -789,11 +791,13 @@ static void R_Subsector(int num)
     int polyCount;
     seg_t **polySeg;
 
+    poly_add_line = true;
+    poly_frontsector = sub->sector;
     polyCount = sub->poly->numsegs;
     polySeg = sub->poly->segs;
     while (polyCount--)
     {
-      // HEXEN_TODO: find some way to do this only on update?
+      // hexen_note: find some way to do this only on update?
       (*polySeg)->v1->px = (*polySeg)->v1->x;
       (*polySeg)->v1->py = (*polySeg)->v1->y;
       (*polySeg)->v2->px = (*polySeg)->v2->x;
@@ -801,6 +805,8 @@ static void R_Subsector(int num)
       (*polySeg)->pangle = (*polySeg)->angle;
       R_AddLine(*polySeg++);
     }
+    poly_add_line = false;
+    poly_frontsector = NULL;
   }
 
   count = sub->numlines;

@@ -82,7 +82,7 @@ result_e T_MovePlane
                             // from moving thru each other
 
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     gld_UpdateSplitData(sector);
   }
@@ -1380,6 +1380,7 @@ int EV_DoFloorAndCeiling(line_t * line, byte * args, dboolean raise)
         {
             sec = &sectors[secnum];
             sec->floordata = NULL;
+            sec->ceilingdata = NULL;
         }
         ceiling = Hexen_EV_DoCeiling(line, args, CLEV_RAISEBYVALUE);
     }
@@ -1391,6 +1392,7 @@ int EV_DoFloorAndCeiling(line_t * line, byte * args, dboolean raise)
         {
             sec = &sectors[secnum];
             sec->floordata = NULL;
+            sec->ceilingdata = NULL;
         }
         ceiling = Hexen_EV_DoCeiling(line, args, CLEV_LOWERBYVALUE);
     }

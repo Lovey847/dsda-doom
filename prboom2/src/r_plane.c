@@ -67,9 +67,7 @@ fixed_t Sky1ColumnOffset;
 fixed_t Sky2ColumnOffset;
 dboolean DoubleSky;
 
-// HEXEN_TODO: MAXVISPLANES is 1280 - maybe only 128 hash slots will be slow?
-
-#define MAXVISPLANES 128    /* must be a power of 2 */
+#define MAXVISPLANES 256    /* must be a power of 2 */
 
 static visplane_t *visplanes[MAXVISPLANES];   // killough
 static visplane_t *freetail;                  // killough
@@ -229,7 +227,7 @@ static void R_MapPlane(int y, int x1, int x2, draw_span_vars_t *dsvars)
   dsvars->x1 = x1;
   dsvars->x2 = x2;
 
-  if (!V_GLActive())
+  if (V_IsSoftwareMode())
     R_DrawSpan(dsvars);
 }
 
@@ -342,7 +340,7 @@ visplane_t *R_FindPlane(fixed_t height, int picnum, int lightlevel, int special,
   check->xoffs = xoffs;               // killough 2/28/98: Save offsets
   check->yoffs = yoffs;
 #ifdef GL_DOOM
-  if (!V_GLActive())
+  if (V_IsSoftwareMode())
 #endif
   {
     int i;
@@ -412,7 +410,7 @@ static void R_DoDrawPlane(visplane_t *pl)
   R_SetDefaultDrawColumnVars(&dcvars);
 
   if (pl->minx <= pl->maxx) {
-    // HEXEN_TODO: Skies
+    // hexen_note: Skies
     // if (pl->picnum == skyflatnum)
     // {                       // Sky flat
     //     #define SKYTEXTUREMIDSHIFTED 200

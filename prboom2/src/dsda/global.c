@@ -32,28 +32,18 @@
 
 #include "global.h"
 
+#include "dsda/mobjinfo.h"
+#include "dsda/music.h"
+#include "dsda/sfx.h"
+#include "dsda/sprite.h"
+#include "dsda/state.h"
+
 #define IGNORE_VALUE -1
 
 const demostate_t (*demostates)[4];
 extern const demostate_t doom_demostates[][4];
 extern const demostate_t heretic_demostates[][4];
 extern const demostate_t hexen_demostates[][4];
-
-state_t* states;
-int num_states;
-
-const char** sprnames;
-int num_sprites;
-
-mobjinfo_t* mobjinfo;
-int num_mobj_types;
-int mobj_types_zero;
-int mobj_types_max;
-
-sfxinfo_t* S_sfx;
-int num_sfx;
-musicinfo_t* S_music;
-int num_music;
 
 weaponinfo_t* weaponinfo;
 
@@ -159,44 +149,15 @@ dboolean raven = false;
 extern patchnum_t hu_font[HU_FONTSIZE];
 extern patchnum_t hu_font2[HU_FONTSIZE];
 
-static void dsda_AllocateMobjInfo(int zero, int max, int count) {
-  num_mobj_types = count;
-  mobj_types_zero = zero;
-  mobj_types_max = max;
-
-  mobjinfo = malloc(sizeof(mobjinfo_t) * num_mobj_types);
-  memset(mobjinfo, 0, sizeof(mobjinfo_t) * num_mobj_types);
-}
-
-static void dsda_SetStates(state_t* state_list, int count) {
-  states = state_list;
-  num_states = count;
-}
-
-static void dsda_SetSpriteNames(const char** sprite_name_list, int count) {
-  sprnames = sprite_name_list;
-  num_sprites = count;
-}
-
-static void dsda_SetSfx(sfxinfo_t* sfx_list, int count) {
-  S_sfx = sfx_list;
-  num_sfx = count;
-}
-
-static void dsda_SetMusic(musicinfo_t* music_list, int count) {
-  S_music = music_list;
-  num_music = count;
-}
-
 static void dsda_InitDoom(void) {
   int i;
   doom_mobjinfo_t* mobjinfo_p;
 
-  dsda_AllocateMobjInfo(0, NUMMOBJTYPES, NUMMOBJTYPES);
-  dsda_SetStates(doom_states, NUMSTATES);
-  dsda_SetSpriteNames(doom_sprnames, NUMSPRITES);
-  dsda_SetSfx(doom_S_sfx, NUMSFX);
-  dsda_SetMusic(doom_S_music, DOOM_NUMMUSIC);
+  dsda_InitializeMobjInfo(DOOM_MT_ZERO, DOOM_NUMMOBJTYPES, DOOM_NUMMOBJTYPES);
+  dsda_InitializeStates(doom_states, DOOM_NUMSTATES);
+  dsda_InitializeSprites(doom_sprnames, DOOM_NUMSPRITES);
+  dsda_InitializeSFX(doom_S_sfx, DOOM_NUMSFX);
+  dsda_InitializeMusic(doom_S_music, DOOM_NUMMUSIC);
 
   demostates = doom_demostates;
 
@@ -265,7 +226,7 @@ static void dsda_InitDoom(void) {
   g_skyflatname = "F_SKY1";
 
   // convert doom mobj types to shared type
-  for (i = 0; i < NUMMOBJTYPES; ++i) {
+  for (i = 0; i < DOOM_NUMMOBJTYPES; ++i) {
     mobjinfo_p = &doom_mobjinfo[i];
 
     mobjinfo[i].doomednum    = mobjinfo_p->doomednum;
@@ -302,6 +263,9 @@ static void dsda_InitDoom(void) {
     mobjinfo[i].ripsound = sfx_None;
     mobjinfo[i].altspeed = NO_ALTSPEED;
     mobjinfo[i].meleerange = MELEERANGE;
+
+    // misc
+    mobjinfo[i].bloodcolor = 0; // default
   }
 
   // don't want to reorganize info.c structure for a few tweaks...
@@ -336,11 +300,11 @@ static void dsda_InitHeretic(void) {
   int i, j;
   raven_mobjinfo_t* mobjinfo_p;
 
-  dsda_AllocateMobjInfo(HERETIC_MT_ZERO, HERETIC_NUMMOBJTYPES, TOTAL_NUMMOBJTYPES);
-  dsda_SetStates(heretic_states, HERETIC_NUMSTATES);
-  dsda_SetSpriteNames(heretic_sprnames, HERETIC_NUMSPRITES);
-  dsda_SetSfx(heretic_S_sfx, HERETIC_NUMSFX);
-  dsda_SetMusic(heretic_S_music, HERETIC_NUMMUSIC);
+  dsda_InitializeMobjInfo(HERETIC_MT_ZERO, HERETIC_NUMMOBJTYPES, HERETIC_NUMMOBJTYPES);
+  dsda_InitializeStates(heretic_states, HERETIC_NUMSTATES);
+  dsda_InitializeSprites(heretic_sprnames, HERETIC_NUMSPRITES);
+  dsda_InitializeSFX(heretic_S_sfx, HERETIC_NUMSFX);
+  dsda_InitializeMusic(heretic_S_music, HERETIC_NUMMUSIC);
 
   demostates = heretic_demostates;
 
@@ -480,6 +444,9 @@ static void dsda_InitHeretic(void) {
     mobjinfo[j].ripsound = heretic_sfx_None;
     mobjinfo[j].altspeed = NO_ALTSPEED;
     mobjinfo[j].meleerange = MELEERANGE;
+
+    // misc
+    mobjinfo[j].bloodcolor = 0; // default
   }
 
   // heretic doesn't use "clip" concept
@@ -498,11 +465,11 @@ static void dsda_InitHexen(void) {
   int i, j;
   raven_mobjinfo_t* mobjinfo_p;
 
-  dsda_AllocateMobjInfo(HEXEN_MT_ZERO, HEXEN_NUMMOBJTYPES, TOTAL_NUMMOBJTYPES);
-  dsda_SetStates(hexen_states, HEXEN_NUMSTATES);
-  dsda_SetSpriteNames(hexen_sprnames, HEXEN_NUMSPRITES);
-  dsda_SetSfx(hexen_S_sfx, HEXEN_NUMSFX);
-  dsda_SetMusic(hexen_S_music, HEXEN_NUMMUSIC);
+  dsda_InitializeMobjInfo(HEXEN_MT_ZERO, HEXEN_NUMMOBJTYPES, TOTAL_NUMMOBJTYPES);
+  dsda_InitializeStates(hexen_states, HEXEN_NUMSTATES);
+  dsda_InitializeSprites(hexen_sprnames, HEXEN_NUMSPRITES);
+  dsda_InitializeSFX(hexen_S_sfx, HEXEN_NUMSFX);
+  dsda_InitializeMusic(hexen_S_music, HEXEN_NUMMUSIC);
 
   demostates = hexen_demostates;
 
@@ -573,23 +540,23 @@ static void dsda_InitHexen(void) {
 
   g_st_height = 39;
   g_border_offset = 4;
-  g_mf_translucent = MF_SHADOW; // HEXEN_TODO: how does ALTSHADOW fit in?
+  g_mf_translucent = MF_SHADOW; // hexen_note: how does ALTSHADOW fit in?
   g_mf_shadow = 0; // doesn't exist in hexen
 
   g_cr_gray = CR_TAN;
-  g_cr_green = CR_YELLOW;
+  g_cr_green = CR_GREEN;
   g_cr_gold = CR_ORANGE;
-  g_cr_red = CR_GOLD;
-  g_cr_blue = CR_BROWN;
+  g_cr_red = CR_YELLOW;
+  g_cr_blue = CR_GOLD;
 
-  g_menu_flat = "F_022";
+  g_menu_flat = "F_032";
   g_menu_font = hu_font2;
   g_menu_save_page_size = 5;
   g_menu_font_spacing = 0;
-  g_menu_cr_title = g_cr_gold;
-  g_menu_cr_set = g_cr_green;
+  g_menu_cr_title = 2;
+  g_menu_cr_set = g_cr_blue;
   g_menu_cr_item = g_cr_red;
-  g_menu_cr_hilite = g_cr_blue;
+  g_menu_cr_hilite = g_cr_gold;
   g_menu_cr_select = g_cr_gray;
   g_menu_cr_disable = g_cr_gray;
 
@@ -634,6 +601,9 @@ static void dsda_InitHexen(void) {
     mobjinfo[j].ripsound = hexen_sfx_None;
     mobjinfo[j].altspeed = NO_ALTSPEED;
     mobjinfo[j].meleerange = MELEERANGE;
+
+    // misc
+    mobjinfo[j].bloodcolor = 0; // default
   }
 
   {

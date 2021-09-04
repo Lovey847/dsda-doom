@@ -51,6 +51,7 @@
 #include "m_misc.h"
 #include "r_main.h"
 #include "lprintf.h"
+#include "p_setup.h"
 #include "e6y.h" //e6y
 #include "dsda.h"
 #include "dsda/hud.h"
@@ -186,7 +187,7 @@ static dboolean    message_list; //2/26/98 enable showing list of messages
 dboolean           message_dontfuckwithme;
 static dboolean    message_nottobefuckedwith;
 static int        message_counter;
-extern int        showMessages;
+static int        yellow_message;
 static dboolean    headsupactive = false;
 
 //jff 2/16/98 hud supported automap colors added
@@ -303,7 +304,7 @@ static const char* HU_Title(void)
     }
     else if (hexen)
     {
-      // HEXEN_TODO: HU_Title
+      return P_GetMapName(gamemap);
     }
     else
     {
@@ -511,6 +512,7 @@ void HU_Start(void)
   message_on = false;
   message_dontfuckwithme = false;
   message_nottobefuckedwith = false;
+  yellow_message = false;
   chat_on = false;
 
   // create the message widget
@@ -533,8 +535,8 @@ void HU_Start(void)
   HUlib_initTextLine
   (
     &w_title,
-    heretic ? 20 : HU_TITLEX,
-    heretic ? 145 : HU_TITLEY,
+    raven ? 20 : HU_TITLEX,
+    raven ? heretic ? 145 : 144 : HU_TITLEY,
     hu_font,
     HU_FONTSTART,
     hudcolor_titl,
@@ -785,7 +787,7 @@ void HU_Start(void)
     &message_list
   );
 
-  if (gamemapinfo != NULL)
+  if (gamemapinfo && gamemapinfo->levelname)
   {
 	  if (gamemapinfo->label)
 		  s = gamemapinfo->label;
@@ -800,7 +802,6 @@ void HU_Start(void)
 		  HUlib_addCharToTextLine(&w_title, ' ');
 	  }
 	  s = gamemapinfo->levelname;
-	  if (!s) s = "Unnamed";
   }
   else
   {
@@ -2225,8 +2226,10 @@ void HU_widget_draw_gkeys(void)
   HUlib_drawTextLine(&w_keys_icon, false);
 }
 
-const char *crosshair_nam[HU_CROSSHAIRS]= { NULL, "CROSS1", "CROSS2", "CROSS3" };
-const char *crosshair_str[HU_CROSSHAIRS]= { "none", "cross", "angle", "dot" };
+const char *crosshair_nam[HU_CROSSHAIRS] =
+  { NULL, "CROSS1", "CROSS2", "CROSS3", "CROSS4", "CROSS5", "CROSS6", "CROSS7" };
+const char *crosshair_str[HU_CROSSHAIRS] =
+  { "none", "cross", "angle", "dot", "small", "slim", "tiny", "big" };
 crosshair_t crosshair;
 
 void HU_init_crosshair(void)
@@ -2265,7 +2268,7 @@ void SetCrosshairTarget(void)
       int top, bottom, h;
       stretch_param_t *params = &stretch_params[crosshair.flags & VPT_ALIGN_MASK];
 
-      if (!V_GLActive())
+      if (V_IsSoftwareMode())
       {
         winy += (float)(viewheight/2 - centery);
       }
@@ -2281,13 +2284,13 @@ void SetCrosshairTarget(void)
 
       if (!hudadd_crosshair_scale)
       {
-        crosshair.target_screen_x = winx;
-        crosshair.target_screen_y = SCREENHEIGHT - winy;
+        crosshair.target_screen_x = winx - (crosshair.w / 2);
+        crosshair.target_screen_y = SCREENHEIGHT - winy - (crosshair.h / 2);
       }
       else
       {
-        crosshair.target_screen_x = (winx - params->deltax1) * 320.0f / params->video->width;
-        crosshair.target_screen_y = 200 - (winy - params->deltay1) * 200.0f / params->video->height;
+        crosshair.target_screen_x = (winx - params->deltax1) * 320.0f / params->video->width - (crosshair.w / 2);
+        crosshair.target_screen_y = 200 - (winy - params->deltay1) * 200.0f / params->video->height - (crosshair.h / 2);
       }
     }
   }
@@ -2299,10 +2302,13 @@ void HU_draw_crosshair(void)
 
   crosshair.target_sprite = -1;
 
-  if (!crosshair_nam[hudadd_crosshair] || crosshair.lump == -1 ||
-    custom_message_p->ticks > 0 || automapmode & am_active ||
-    menuactive != mnact_inactive || paused ||
-    plr->readyweapon == wp_chainsaw || plr->readyweapon == wp_fist)
+  if (
+    !crosshair_nam[hudadd_crosshair] ||
+    crosshair.lump == -1 ||
+    automapmode & am_active ||
+    menuactive != mnact_inactive ||
+    paused
+  )
   {
     return;
   }
@@ -2570,6 +2576,9 @@ void HU_Drawer(void)
   HU_Erase(); // jff 4/24/98 Erase current lines before drawing current
               // needed when screen not fullsize
 
+  if (hudadd_crosshair)
+    HU_draw_crosshair();
+
   //jff 4/21/98 if setup has disabled message list while active, turn it off
   if (hud_msg_lines<=1)
     message_list = false;
@@ -2581,9 +2590,6 @@ void HU_Drawer(void)
   //e6y
   if (custom_message_p->ticks > 0)
     HUlib_drawTextLine(&w_centermsg, false);
-
-  if (hudadd_crosshair)
-    HU_draw_crosshair();
 
   // if the message review is enabled show the scrolling message review
   if (hud_msg_lines>1 && message_list)
@@ -2643,6 +2649,7 @@ void HU_Ticker(void)
   {
     message_on = false;
     message_nottobefuckedwith = false;
+    yellow_message = false;
   }
   if (bsdown && bscounter++ > 9) {
     HUlib_keyInIText(&w_chat, KEYD_BACKSPACE);
@@ -2651,14 +2658,12 @@ void HU_Ticker(void)
 
   // if messages on, or "Messages Off" is being displayed
   // this allows the notification of turning messages off to be seen
-  if (showMessages || message_dontfuckwithme)
+  if (dsda_ShowMessages() || message_dontfuckwithme)
   {
     // display message if necessary
     if ((plr->message && !message_nottobefuckedwith)
         || (plr->message && message_dontfuckwithme))
     {
-      // HEXEN_TODO: yellow message variant
-
       //post the message to the message widget
       HUlib_addMessageToSText(&w_message, 0, plr->message);
       //jff 2/26/98 add message to refresh text widget too
@@ -2674,6 +2679,9 @@ void HU_Ticker(void)
       message_nottobefuckedwith = message_dontfuckwithme;
       // clear the flag that "Messages Off" is being posted
       message_dontfuckwithme = 0;
+
+      yellow_message = plr->yellowMessage;
+      // hexen_note: use FONTAY_S for yellow messages (new font, y_message, etc)
     }
   }
 
@@ -2731,6 +2739,7 @@ void HU_Ticker(void)
               message_nottobefuckedwith = true;
               message_on = true;
               message_counter = HU_MSGTIMEOUT;
+              yellow_message = false;
               if ( gamemode == commercial )
                 S_StartSound(0, sfx_radio);
               else
@@ -2803,6 +2812,8 @@ char HU_dequeueChatChar(void)
 //
 // Passed the event to respond to, returns true if the event was handled
 //
+#define CHAT_ENTER -1
+
 dboolean HU_Responder(event_t *ev)
 {
 
@@ -2811,7 +2822,7 @@ dboolean HU_Responder(event_t *ev)
   dboolean   eatkey = false;
   static dboolean  shiftdown = false;
   static dboolean  altdown = false;
-  unsigned char   c;
+  int     c;
   int     i;
   int     numplayers;
 
@@ -2845,14 +2856,10 @@ dboolean HU_Responder(event_t *ev)
     bsdown = false;
     bscounter = 0;
   }
-  else if (dsda_InputActivated(dsda_input_chat_enter))
-  {
-    c = KEYD_ENTER;
-  }
 
   if (!chat_on)
   {
-    if (c == KEYD_ENTER) // phares
+    if (dsda_InputActivated(dsda_input_chat_enter)) // phares
     {
       if (hud_msg_lines>1)  // it posts multi-line messages that will trash
       {
@@ -2910,6 +2917,11 @@ dboolean HU_Responder(event_t *ev)
   }//jff 2/26/98 no chat functions if message review is displayed
   else if (!message_list && c)
   {
+    if (dsda_InputActivated(dsda_input_chat_enter))
+    {
+      c = CHAT_ENTER;
+    }
+
     // send a macro
     if (altdown)
     {
@@ -2940,7 +2952,7 @@ dboolean HU_Responder(event_t *ev)
       if (eatkey)
         HU_queueChatChar(c);
 
-      if (c == KEYD_ENTER) // phares
+      if (c == CHAT_ENTER) // phares
       {
         chat_on = false;
         if (w_chat.l.len)
@@ -3004,4 +3016,5 @@ int SetCustomMessage(int plr, const char *msg, int delay, int ticks, int cm, int
 void ClearMessage(void)
 {
   message_counter = 0;
+  yellow_message = false;
 }

@@ -50,8 +50,6 @@
 // Needs precompiled tables/data structures.
 #include "info.h"
 
-#include "dsda/mobj_extension.h"
-
 //
 // NOTES: mobj_t
 //
@@ -234,8 +232,7 @@
 #define	MF_ALTSHADOW	LONGLONG(0x0000040000000000) // alternate translucent draw
 #define	MF_ICECORPSE	LONGLONG(0x0000080000000000) // a frozen corpse (for blasting)
 
-// HEXEN_TODO:
-// hexen redefines MF_TRANSLATION to doom's (MF_TRANSLATION | MF_UNUSED2)
+// hexen_note: MF_TRANSLATION covers doom's (MF_TRANSLATION | MF_UNUSED2)
 
 #define ALIVE(thing) ((thing->health > 0) && ((thing->flags & (MF_COUNTKILL | MF_CORPSE | MF_RESSURECTED)) == MF_COUNTKILL))
 
@@ -246,6 +243,8 @@ enum {
   MIF_FALLING = 1,      // Object is falling
   MIF_ARMED = 2,        // Object is armed (for MF_TOUCHY objects)
   MIF_SCROLLING = 4,    // Object is affected by scroller / pusher / puller
+  MIF_PLAYER_DAMAGED_BARREL = 8,
+  MIF_SPAWNED_BY_ICON = 16,
 };
 
 // heretic
@@ -387,8 +386,6 @@ typedef struct mobj_s
 
     int iden_nums;		// hi word stores thing num, low word identifier num
 
-    dsda_mobj_extension_t dsda_extension;
-
     // heretic
     int damage;                 // For missiles
     uint_64_t flags2;           // Heretic & MBF21 flags
@@ -402,6 +399,9 @@ typedef struct mobj_s
     short tid;                  // thing identifier
     byte special;               // special
     byte args[5];               // special arguments
+
+    // misc
+    byte color;
 
     // SEE WARNING ABOVE ABOUT POINTER FIELDS!!!
 } mobj_t;
@@ -441,7 +441,7 @@ void    P_RemoveMobj(mobj_t *th);
 dboolean P_SetMobjState(mobj_t *mobj, statenum_t state);
 void    P_MobjThinker(mobj_t *mobj);
 void    P_SpawnPuff(fixed_t x, fixed_t y, fixed_t z);
-void    P_SpawnBlood(fixed_t x, fixed_t y, fixed_t z, int damage);
+void    P_SpawnBlood(fixed_t x, fixed_t y, fixed_t z, int damage, mobj_t *bleeder);
 mobj_t  *P_SpawnMissile(mobj_t *source, mobj_t *dest, mobjtype_t type);
 mobj_t  *P_SpawnPlayerMissile(mobj_t *source, mobjtype_t type);
 dboolean P_IsDoomnumAllowed(int doomnum);
@@ -533,10 +533,10 @@ int P_HitFloor(mobj_t * thing);
 int P_GetThingFloorType(mobj_t * thing);
 int P_FaceMobj(mobj_t * source, mobj_t * target, angle_t * delta);
 void P_BloodSplatter(fixed_t x, fixed_t y, fixed_t z, mobj_t * originator);
-void P_RipperBlood(mobj_t * mo);
-dboolean Heretic_P_SetMobjState(mobj_t * mobj, statenum_t state);
+void P_RipperBlood(mobj_t * mo, mobj_t * bleeder);
+dboolean Raven_P_SetMobjState(mobj_t * mobj, statenum_t state);
 void P_FloorBounceMissile(mobj_t * mo);
-void Heretic_P_SpawnPuff(fixed_t x, fixed_t y, fixed_t z);
+void Raven_P_SpawnPuff(fixed_t x, fixed_t y, fixed_t z);
 
 // hexen
 

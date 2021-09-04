@@ -116,6 +116,7 @@ extern void M_QuitDOOM(int choice);
 int use_fullscreen;
 int desired_fullscreen;
 int exclusive_fullscreen;
+int gl_exclusive_fullscreen;
 int render_vsync;
 int render_screen_multiply;
 int integer_scaling;
@@ -137,6 +138,11 @@ extern int     usemouse;        // config file var
 static dboolean mouse_enabled; // usemouse, but can be overriden by -nomouse
 
 video_mode_t I_GetModeFromString(const char *modestr);
+
+static int I_ExclusiveFullscreen(void)
+{
+  return V_IsOpenGLMode() ? gl_exclusive_fullscreen : exclusive_fullscreen;
+}
 
 /////////////////////////////////////////////////////////////////////////////////
 // Keyboard handling
@@ -368,7 +374,7 @@ void I_StartTic (void)
 //
 void I_StartFrame (void)
 {
-  if (V_GL3Active())
+  if (V_IsOpenGL3Mode())
     gl3_Start();
 }
 
@@ -432,7 +438,7 @@ static void I_UploadNewPalette(int pal, int force)
   static size_t num_pals;
   dsda_playpal_t* playpal_data;
 
-  if (V_GLActive())
+  if (V_IsOpenGLMode())
     return;
 
   playpal_data = dsda_PlayPalData();
@@ -518,11 +524,11 @@ void I_FinishUpdate (void)
 #endif
 
 #ifdef GL_DOOM
-  if (V_LegacyGLActive()) {
+  if (V_IsLegacyOpenGLMode()) {
     // proff 04/05/2000: swap OpenGL buffers
     gld_Finish();
     return;
-  } else if (V_GL3Active()) {
+  } else if (V_IsOpenGL3Mode()) {
     // Same thing, but doesn't do legacy renderer specific things.
     gl3_Finish();
     return;
@@ -544,9 +550,9 @@ void I_FinishUpdate (void)
       h=screen->h;
       for (; h>0; h--)
       {
-        memcpy(dest,src,SCREENWIDTH*V_GetPixelDepth()); //e6y
+        memcpy(dest,src,SCREENWIDTH); //e6y
         dest+=screen->pitch;
-        src+=screens[0].byte_pitch;
+        src+=screens[0].pitch;
       }
 
       SDL_UnlockSurface(screen);
@@ -715,7 +721,7 @@ static void I_FillScreenResolutionsList(void)
       if (i > count - 1)
       {
         // no hard-coded resolutions for mode-changing fullscreen
-        if (exclusive_fullscreen)
+        if (I_ExclusiveFullscreen())
           continue;
 
         mode.w = canonicals[i - count].w;
@@ -779,8 +785,8 @@ static void I_FillScreenResolutionsList(void)
 }
 
 // e6y
-// GLBoom use this function for trying to set the closest supported resolution if the requested mode can't be set correctly.
-// For example glboom.exe -geom 1025x768 -nowindow will set 1024x768.
+// Function for trying to set the closest supported resolution if the requested mode can't be set correctly.
+// For example dsda-doom.exe -geom 1025x768 -nowindow will set 1024x768.
 // It should be used only for fullscreen modes.
 static void I_ClosestResolution (int *width, int *height)
 {
@@ -872,16 +878,12 @@ unsigned int I_TestCPUCacheMisses(int width, int height, unsigned int mintime)
 // Calculates the screen resolution, possibly using the supplied guide
 void I_CalculateRes(int width, int height)
 {
-// e6y
-// GLBoom will try to set the closest supported resolution
-// if the requested mode can't be set correctly.
-// For example glboom.exe -geom 1025x768 -nowindow will set 1024x768.
-// It affects only fullscreen modes.
-  if (V_GLActive()) {
-    if ( desired_fullscreen )
-    {
-      I_ClosestResolution(&width, &height);
-    }
+  if (desired_fullscreen && I_ExclusiveFullscreen())
+  {
+    I_ClosestResolution(&width, &height);
+  }
+
+  if (V_IsOpenGLMode()) {
     SCREENWIDTH = width;
     SCREENHEIGHT = height;
     SCREENPITCH = SCREENWIDTH;
@@ -889,10 +891,6 @@ void I_CalculateRes(int width, int height)
     unsigned int count1, count2;
     int pitch1, pitch2;
 
-    if (desired_fullscreen && exclusive_fullscreen)
-    {
-      I_ClosestResolution(&width, &height);
-    }
     SCREENWIDTH = width;//(width+15) & ~15;
     SCREENHEIGHT = height;
 
@@ -904,8 +902,8 @@ void I_CalculateRes(int width, int height)
     {
       unsigned int mintime = 100;
       int w = (width+15) & ~15;
-      pitch1 = w * V_GetPixelDepth();
-      pitch2 = w * V_GetPixelDepth() + 32;
+      pitch1 = w;
+      pitch2 = w + 32;
 
       count1 = I_TestCPUCacheMisses(pitch1, SCREENHEIGHT, mintime);
       count2 = I_TestCPUCacheMisses(pitch2, SCREENHEIGHT, mintime);
@@ -1011,29 +1009,26 @@ void I_InitScreenResolution(void)
 #ifndef GL_DOOM
   if (V_IsGL(mode))
   {
-    mode = (video_mode_t)I_GetModeFromString(default_videomode = "8bit");
+    mode = (video_mode_t)I_GetModeFromString(default_videomode = "Software");
   }
 #endif
 
   V_InitMode(mode);
 
   I_CalculateRes(w, h);
-  V_DestroyUnusedTrueColorPalettes();
   V_FreeScreens();
 
   // set first three to standard values
   for (i=0; i<3; i++) {
     screens[i].width = SCREENWIDTH;
     screens[i].height = SCREENHEIGHT;
-    screens[i].byte_pitch = SCREENPITCH;
-    screens[i].int_pitch = SCREENPITCH / V_GetModePixelDepth(VID_MODE32);
+    screens[i].pitch = SCREENPITCH;
   }
 
   // statusbar
   screens[4].width = SCREENWIDTH;
   screens[4].height = SCREENHEIGHT;
-  screens[4].byte_pitch = SCREENPITCH;
-  screens[4].int_pitch = SCREENPITCH / V_GetModePixelDepth(VID_MODE32);
+  screens[4].pitch = SCREENPITCH;
 
   I_InitBuffersRes();
 
@@ -1106,18 +1101,14 @@ video_mode_t I_GetModeFromString(const char *modestr)
 {
   video_mode_t mode;
 
-  if (!stricmp(modestr,"32")) {
-    mode = VID_MODE32;
-  } else if (!stricmp(modestr,"32bit")) {
-    mode = VID_MODE32;
-  } else if (!stricmp(modestr,"gl")) {
+  if (!stricmp(modestr,"gl")) {
     mode = VID_MODEGL;
   } else if (!stricmp(modestr,"OpenGL")) {
     mode = VID_MODEGL;
   } else if (!stricmp(modestr,"OpenGL3")) {
     mode = VID_MODEGL3;
   } else {
-    mode = VID_MODE8;
+    mode = VID_MODESW;
   }
 
   return mode;
@@ -1137,7 +1128,7 @@ void I_UpdateVideoMode(void)
     I_CaptureFinish();
 
 #ifdef GL_DOOM
-    if (V_LegacyGLActive())
+    if (V_IsLegacyOpenGLMode())
     {
       gld_CleanMemory();
       // hires patches
@@ -1166,14 +1157,13 @@ void I_UpdateVideoMode(void)
   screen_multiply = render_screen_multiply;
 
   // Initialize SDL with this graphics mode
-  if (V_GLActive()) {
+  if (V_IsOpenGLMode()) {
     init_flags = SDL_WINDOW_OPENGL;
   }
 
-  // Fullscreen desktop for software renderer only - DTIED
   if (desired_fullscreen)
   {
-    if (V_GLActive() || exclusive_fullscreen)
+    if (I_ExclusiveFullscreen())
       init_flags |= SDL_WINDOW_FULLSCREEN;
     else
       init_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
@@ -1183,14 +1173,14 @@ void I_UpdateVideoMode(void)
   // running.  This feature is disabled on OS X, as it adds an ugly
   // scroll handle to the corner of the screen.
 #ifndef MACOSX
-  if (!desired_fullscreen && !V_GLActive())
+  if (!desired_fullscreen && V_IsSoftwareMode())
     init_flags |= SDL_WINDOW_RESIZABLE;
 #endif
 
-  if (V_GLActive())
+  if (V_IsOpenGLMode())
   {
 #ifdef GL_DOOM
-    if (V_LegacyGLActive()) {
+    if (V_IsLegacyOpenGLMode()) {
       SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 0 );
       SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 0 );
       SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 0 );
@@ -1207,7 +1197,7 @@ void I_UpdateVideoMode(void)
 
       //e6y: anti-aliasing
       gld_MultisamplingInit();
-    } else if (V_GL3Active()) {
+    } else if (V_IsOpenGL3Mode()) {
       // Enable double buffering
       SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
@@ -1233,7 +1223,7 @@ void I_UpdateVideoMode(void)
       init_flags);
     sdl_glcontext = SDL_GL_CreateContext(sdl_window);
 
-    if (V_LegacyGLActive()) gld_CheckHardwareGamma();
+    if (V_IsLegacyOpenGLMode()) gld_CheckHardwareGamma();
 #endif
   }
   else
@@ -1279,7 +1269,7 @@ void I_UpdateVideoMode(void)
     // [FG] force integer scales
     SDL_RenderSetIntegerScale(sdl_renderer, integer_scaling);
 
-    screen = SDL_CreateRGBSurface(0, SCREENWIDTH, SCREENHEIGHT, V_GetNumPixelBits(), 0, 0, 0, 0);
+    screen = SDL_CreateRGBSurface(0, SCREENWIDTH, SCREENHEIGHT, 8, 0, 0, 0, 0);
     buffer = SDL_CreateRGBSurface(0, SCREENWIDTH, SCREENHEIGHT, 32, 0, 0, 0, 0);
     SDL_FillRect(buffer, NULL, 0);
 
@@ -1318,18 +1308,13 @@ void I_UpdateVideoMode(void)
   windowid = SDL_GetWindowID(sdl_window);
 
 #ifdef GL_DOOM
-  if (V_GLActive())
+  if (V_IsOpenGLMode())
   {
     SDL_GL_SetSwapInterval(((render_vsync && !novsync) ? 1 : 0));
   }
 #endif
 
-#ifdef GL_DOOM
-  /*if (V_GetMode() == VID_MODEGL)
-    gld_MultisamplingCheck();*/
-#endif
-
-  if (!V_GLActive())
+  if (V_IsSoftwareMode())
   {
     lprintf(LO_INFO, "I_UpdateVideoMode: 0x%x, %s, %s\n", init_flags, screen && screen->pixels ? "SDL buffer" : "own buffer", screen && SDL_MUSTLOCK(screen) ? "lock-and-copy": "direct access");
 
@@ -1338,8 +1323,7 @@ void I_UpdateVideoMode(void)
     {
       screens[0].not_on_heap = true;
       screens[0].data = (unsigned char *) (screen->pixels);
-      screens[0].byte_pitch = screen->pitch;
-      screens[0].int_pitch = screen->pitch / V_GetModePixelDepth(VID_MODE32);
+      screens[0].pitch = screen->pitch;
     }
     else
     {
@@ -1349,7 +1333,7 @@ void I_UpdateVideoMode(void)
     V_AllocScreens();
 
     R_InitBuffer(SCREENWIDTH, SCREENHEIGHT);
-  } else if (V_GL3Active()) gl3_Init(SCREENWIDTH, SCREENHEIGHT);
+  } else if (V_IsOpenGL3Mode()) gl3_Init(SCREENWIDTH, SCREENHEIGHT);
 
   // e6y: wide-res
   // Need some initialisations before level precache
@@ -1362,7 +1346,7 @@ void I_UpdateVideoMode(void)
   AM_SetResolution();
 
 #ifdef GL_DOOM
-  if (V_GLActive())
+  if (V_IsOpenGLMode())
   {
     int temp;
     lprintf(LO_INFO,"SDL OpenGL PixelFormat:\n");
@@ -1395,10 +1379,10 @@ void I_UpdateVideoMode(void)
     SDL_GL_GetAttribute( SDL_GL_STENCIL_SIZE, &temp );
     lprintf(LO_INFO,"    SDL_GL_STENCIL_SIZE: %i\n",temp);
 
-    if (V_LegacyGLActive()) gld_Init(SCREENWIDTH, SCREENHEIGHT);
+    if (V_IsLegacyOpenGLMode()) gld_Init(SCREENWIDTH, SCREENHEIGHT);
   }
 
-  if (V_GLActive())
+  if (V_IsOpenGLMode())
   {
     M_ChangeFOV();
     deh_changeCompTranslucency();
@@ -1525,7 +1509,7 @@ static void UpdateFocus(void)
   }
 
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     if (gl_hardware_gamma)
     {

@@ -44,6 +44,8 @@
 #include "lprintf.h"
 #include "e6y.h"//e6y
 
+#include "dsda/settings.h"
+
 #define BASEYCENTER 100
 
 static int *clipbot = NULL; // killough 2/8/98: // dropoff overflow
@@ -110,7 +112,6 @@ int *screenheightarray;  // change to MAX_* // dropoff overflow
 // variables used to look up and range check thing_t sprites patches
 
 spritedef_t *sprites;
-int numsprites;
 
 #define MAX_SPRITE_FRAMES 30          /* Macroized -- killough 1/25/98 */
 
@@ -235,13 +236,7 @@ static void R_InitSpriteDefs(const char * const * namelist)
   if (!numentries || !*namelist)
     return;
 
-  // count the number of sprite names
-  for (i=0; namelist[i]; i++)
-    ;
-
-  numsprites = i;
-
-  sprites = Z_Calloc(numsprites, sizeof(*sprites), PU_STATIC, NULL);
+  sprites = Z_Calloc(num_sprites, sizeof(*sprites), PU_STATIC, NULL);
 
   // Create hash table based on just the first four letters of each sprite
   // killough 1/31/98
@@ -261,13 +256,18 @@ static void R_InitSpriteDefs(const char * const * namelist)
   // scan all the lump names for each of the names,
   //  noting the highest frame letter.
 
-  for (i=0 ; i<numsprites ; i++)
+  for (i=0 ; i<num_sprites ; i++)
     {
       int k;
       int rot;
-      const char *spritename = namelist[i];
-      int j = hash[R_SpriteNameHash(spritename) % numentries].index;
+      const char *spritename;
+      int j;
 
+      spritename = namelist[i];
+      if (!spritename)
+        continue;
+
+      j = hash[R_SpriteNameHash(spritename) % numentries].index;
       if (j >= 0)
         {
           memset(sprtemp, -1, sizeof(sprtemp));
@@ -535,7 +535,7 @@ static void R_DrawVisSprite(vissprite_t *vis)
   dcvars.colormap = vis->colormap;
   dcvars.nextcolormap = dcvars.colormap; // for filtering -- POPE
 
-  // HEXEN_TODO: colfunc: No idea how to merge this right now...
+  // hexen_note: colfunc: No idea how to merge this right now...
   // if (vis->mobjflags & (MF_SHADOW | MF_ALTSHADOW))
   // {
   //     if (vis->mobjflags & MF_TRANSLATION)
@@ -567,22 +567,29 @@ static void R_DrawVisSprite(vissprite_t *vis)
   // mixed with translucent/non-translucenct 2s normals
 
   if (!dcvars.colormap)   // NULL colormap = shadow draw
+  {
     colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_FUZZ, filter, filterz);    // killough 3/14/98
+  }
+  else if (vis->color)
+  {
+    colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_TRANSLATED, filter, filterz);
+    dcvars.translation = colrngs[vis->color];
+  }
+  else if (vis->mobjflags & MF_TRANSLATION)
+  {
+    colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_TRANSLATED, filter, filterz);
+    dcvars.translation = translationtables - 256 +
+      ((vis->mobjflags & MF_TRANSLATION) >> (MF_TRANSSHIFT-8) );
+  }
+  else if (vis->mobjflags & g_mf_translucent) // phares
+  {
+    colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_TRANSLUCENT, filter, filterz);
+    tranmap = main_tranmap;       // killough 4/11/98
+  }
   else
-    if (vis->mobjflags & MF_TRANSLATION)
-      {
-        colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_TRANSLATED, filter, filterz);
-        dcvars.translation = translationtables - 256 +
-          ((vis->mobjflags & MF_TRANSLATION) >> (MF_TRANSSHIFT-8) );
-      }
-    else
-      if (vis->mobjflags & g_mf_translucent && general_translucency) // phares
-        {
-          colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_TRANSLUCENT, filter, filterz);
-          tranmap = main_tranmap;       // killough 4/11/98
-        }
-      else
-        colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_STANDARD, filter, filterz); // killough 3/14/98, 4/11/98
+  {
+    colfunc = R_GetDrawColumnFunc(RDC_PIPELINE_STANDARD, filter, filterz); // killough 3/14/98, 4/11/98
+  }
 
 // proff 11/06/98: Changed for high-res
   dcvars.iscale = FixedDiv (FRACUNIT, vis->scale);
@@ -631,7 +638,7 @@ void R_SetClipPlanes(void)
 {
   // thing is behind view plane?
 #ifdef GL_DOOM
-  if ((V_LegacyGLActive()) &&
+  if ((V_IsLegacyOpenGLMode()) &&
       (HaveMouseLook() || (render_fov > FOV90)) &&
       (!render_paperitems || simple_shadows.loaded))
   {
@@ -674,8 +681,13 @@ static void R_ProjectSprite (mobj_t* thing, int lightlevel)
   fixed_t tz, tz2;
   int width;
 
+  if (thing->flags2 & MF2_DONTDRAW)
+  {
+    return;
+  }
+
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     gld_ProjectSprite(thing, lightlevel);
     return;
@@ -719,7 +731,7 @@ static void R_ProjectSprite (mobj_t* thing, int lightlevel)
 
     // decide which patch to use for sprite relative to player
 #ifdef RANGECHECK
-  if ((unsigned) thing->sprite >= (unsigned)numsprites)
+  if ((unsigned) thing->sprite >= (unsigned)num_sprites)
     I_Error ("R_ProjectSprite: Invalid sprite number %i", thing->sprite);
 #endif
 
@@ -877,6 +889,7 @@ static void R_ProjectSprite (mobj_t* thing, int lightlevel)
   vis->x1 = x1 < 0 ? 0 : x1;
   vis->x2 = x2 >= viewwidth ? viewwidth-1 : x2;
   iscale = FixedDiv (FRACUNIT, xscale);
+  vis->color = thing->color;
 
   if (flip)
     {
@@ -1039,7 +1052,7 @@ static void R_DrawPSprite (pspdef_t *psp)
   // decide which patch to use
 
 #ifdef RANGECHECK
-  if ( (unsigned)psp->state->sprite >= (unsigned)numsprites)
+  if ( (unsigned)psp->state->sprite >= (unsigned)num_sprites)
     I_Error ("R_ProjectSprite: Invalid sprite number %i", psp->state->sprite);
 #endif
 
@@ -1057,7 +1070,7 @@ static void R_DrawPSprite (pspdef_t *psp)
   flip = (dboolean)(sprframe->flip & 1);
 
   // [crispy] center the weapon sprite horizontally and vertically
-  if (weapon_attack_alignment && viewplayer->attackdown && !psp->state->misc1)
+  if (dsda_WeaponAttackAlignment() && viewplayer->attackdown && !psp->state->misc1)
   {
       const weaponinfo_t *const winfo = &weaponinfo[viewplayer->readyweapon];
       const int state = viewplayer->psprites[ps_weapon].state - states;
@@ -1114,6 +1127,7 @@ static void R_DrawPSprite (pspdef_t *psp)
   vis->x2 = x2 >= viewwidth ? viewwidth-1 : x2;
 // proff 11/06/98: Added for high-res
   vis->scale = pspriteyscale;
+  vis->color = 0;
 
   if (flip)
     {
@@ -1210,7 +1224,7 @@ static void R_DrawPSprite (pspdef_t *psp)
   }
 
   // proff 11/99: don't use software stuff in OpenGL
-  if (!V_GLActive())
+  if (V_IsSoftwareMode())
   {
     R_DrawVisSprite(vis);
   }

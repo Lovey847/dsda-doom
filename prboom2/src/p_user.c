@@ -290,7 +290,7 @@ void P_SetPitch(player_t *player)
   {
     if (!(demoplayback || democontinue))
     {
-      if (GetMouseLook())
+      if (dsda_MouseLook())
       {
         if (!mo->reactiontime && (!(automapmode & am_active) || (automapmode & am_overlay)))
         {
@@ -329,7 +329,7 @@ void P_MovePlayer (player_t* player)
   ticcmd_t *cmd;
   mobj_t *mo;
 
-  if (raven) return Heretic_P_MovePlayer(player);
+  if (raven) return Raven_P_MovePlayer(player);
 
   cmd = &player->cmd;
   mo = player->mo;
@@ -404,7 +404,7 @@ void P_DeathThink (player_t* player)
   // fall to the ground
 
   onground = (player->mo->z <= player->mo->floorz);
-  if (player->mo->type == g_skullpop_mt || player->mo->type == HEXEN_MT_ICECHUNK)
+  if (player->mo->type == g_skullpop_mt || (hexen && player->mo->type == HEXEN_MT_ICECHUNK))
   {
     // Flying bloody skull
     player->viewheight = 6*FRACUNIT;
@@ -562,7 +562,6 @@ void P_DeathThink (player_t* player)
 //
 
 void P_MorphPlayerThink(player_t * player);
-dboolean P_UndoPlayerMorph(player_t * player);
 
 void P_PlayerThink (player_t* player)
 {
@@ -598,16 +597,6 @@ void P_PlayerThink (player_t* player)
     cmd->sidemove = 0;
     player->mo->flags &= ~MF_JUSTATTACKED;
   }
-
-  // HEXEN_TODO: message stuff
-  // messageTics is above the rest of the counters so that messages will
-  //              go away, even in death.
-  // player->messageTics--;      // Can go negative
-  // if (!player->messageTics || player->messageTics == -1)
-  // {                           // Refresh the screen when a message goes away
-  //     player->ultimateMessage = false;        // clear out any chat messages.
-  //     player->yellowMessage = false;
-  // }
 
   if (hexen)
     player->worldTimer++;
@@ -788,6 +777,11 @@ void P_PlayerThink (player_t* player)
         P_PlayerUseArtifact(player, cmd->arti);
       }
     }
+  }
+
+  if (raven && cmd->buttons & BT_SPECIAL)
+  {
+    cmd->buttons = 0;
   }
 
   // Check for weapon change.
@@ -1397,7 +1391,7 @@ dboolean P_UseArtifact(player_t * player, artitype_t arti)
     return (true);
 }
 
-void Heretic_P_MovePlayer(player_t * player)
+void Raven_P_MovePlayer(player_t * player)
 {
     int look;
     int fly;

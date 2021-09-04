@@ -102,8 +102,6 @@ extern int g_menu_cr_disable;
 int mouseSensitivity_horiz; // has default   //  killough
 int mouseSensitivity_vert;  // has default
 
-int showMessages;    // Show messages has default, 0 = off, 1 = on
-
 int hide_setup=1; // killough 5/15/98
 
 // Blocky mode, has default, 0 = high, 1 = normal
@@ -128,23 +126,6 @@ int     messageLastMenuActive;
 dboolean messageNeedsInput; // timed message = no input from user
 
 void (*messageRoutine)(int response);
-
-/* killough 8/15/98: when changes are allowed to sync-critical variables */
-static int allow_changes(void)
-{
- return !(demoplayback || demorecording || netgame);
-}
-
-static void M_UpdateCurrent(default_t* def)
-{
-  /* cph - requires rewrite of m_misc.c */
-  if (def->current) {
-    if (allow_changes())  /* killough 8/15/98 */
-  *def->current = *def->location.pi;
-    else if (*def->current != *def->location.pi)
-  warn_about_changes(S_LEVWARN); /* killough 8/15/98 */
-  }
-}
 
 int warning_about_changes, print_warning_about_changes;
 
@@ -216,7 +197,7 @@ void M_ReadThis(int choice);
 void M_ReadThis2(int choice);
 void M_QuitDOOM(int choice);
 
-void M_ChangeMessages(int choice);
+void M_ToggleMessages(int choice);
 void M_ChangeSensitivity(int choice);
 void M_SfxVol(int choice);
 void M_MusicVol(int choice);
@@ -1012,6 +993,25 @@ static void M_DoSave(int slot)
 //
 // User wants to save. Start string input for M_Responder
 //
+static inline dboolean IsMapName(char *str)
+{
+    if (strlen(str) == 4 &&
+        str[0] == 'E' && isdigit(str[1]) &&
+        str[2] == 'M' && isdigit(str[3]))
+    {
+        return true;
+    }
+
+    if (strlen(str) == 5 &&
+        str[0] == 'M' && str[1] == 'A' && str[2] == 'P' &&
+        isdigit(str[3]) && isdigit(str[4]))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 void M_SaveSelect(int choice)
 {
   // we are going to be intercepting all chars
@@ -1019,8 +1019,12 @@ void M_SaveSelect(int choice)
 
   saveSlot = choice;
   strcpy(saveOldString,savegamestrings[choice]);
-  if (!strcmp(savegamestrings[choice],s_EMPTYSTRING)) // Ty 03/27/98 - externalized
-    savegamestrings[choice][0] = 0;
+  if (!strcmp(savegamestrings[choice],s_EMPTYSTRING) || // Ty 03/27/98 - externalized
+      IsMapName(savegamestrings[choice]))
+  {
+    strncpy(savegamestrings[choice], MAPNAME(gameepisode, gamemap), SAVESTRINGSIZE);
+    savegamestrings[choice][SAVESTRINGSIZE - 1] = 0;
+  }
   saveCharIndex = strlen(savegamestrings[choice]);
 }
 
@@ -1076,7 +1080,7 @@ menuitem_t OptionsMenu[]=
   {1,"M_GENERL", M_General, 'g', "GENERAL"},      // killough 10/98
   {1,"M_SETUP",  M_Setup,   's', "SETUP"},        // phares 3/21/98
   {1,"M_ENDGAM", M_EndGame,'e',  "END GAME"},
-  {1,"M_MESSG",  M_ChangeMessages,'m', "MESSAGES:"},
+  {1,"M_MESSG",  M_ToggleMessages,'m', "MESSAGES:"},
   /*    {1,"M_DETAIL",  M_ChangeDetail,'g'},  unused -- killough */
   {2,"M_SCRNSZ", M_SizeDisplay,'s', "SCREEN SIZE"},
   {-1,"",0},
@@ -1114,12 +1118,12 @@ void M_DrawOptions(void)
   {
     M_WriteText(OptionsDef.x + M_StringWidth("MESSAGES: "),
       OptionsDef.y+8-(M_StringHeight("ONOFF")/2)+LINEHEIGHT*messages,
-      showMessages ? "ON" : "OFF", CR_DEFAULT);
+      dsda_ShowMessages() ? "ON" : "OFF", CR_DEFAULT);
   }
   else
   {
     V_DrawNamePatch(OptionsDef.x + 120, OptionsDef.y+LINEHEIGHT*messages, 0,
-      msgNames[showMessages], CR_DEFAULT, VPT_STRETCH);
+      msgNames[dsda_ShowMessages()], CR_DEFAULT, VPT_STRETCH);
   }
 
   M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(scrnsize+1),
@@ -1525,13 +1529,16 @@ void M_EndGame(int choice)
 //    Toggle messages on/off
 //
 
-void M_ChangeMessages(int choice)
+void M_ToggleMessages(int choice)
 {
   // warning: unused parameter `int choice'
   choice = 0;
-  showMessages = 1 - showMessages;
+  dsda_ToggleSetting(dsda_show_messages);
+}
 
-  if (!showMessages)
+void M_ChangeMessages(void)
+{
+  if (!dsda_ShowMessages())
     players[consoleplayer].message = s_MSGOFF; // Ty 03/27/98 - externalized
   else
     players[consoleplayer].message = s_MSGON ; // Ty 03/27/98 - externalized
@@ -2684,10 +2691,12 @@ setup_menu_t dsda_keys_settings[] = {
   { "Rewind", S_INPUT, m_scrn, KB_X, KB_Y + 3 * 8, { 0 }, dsda_input_rewind },
   { "Cycle Input Profile", S_INPUT, m_scrn, KB_X, KB_Y + 4 * 8, { 0 }, dsda_input_cycle_profile },
   { "Cycle Palette", S_INPUT, m_scrn, KB_X, KB_Y + 5 * 8, { 0 }, dsda_input_cycle_palette },
-  { "Toggle Command Display", S_INPUT, m_scrn, KB_X, KB_Y + 6 * 8, { 0 }, dsda_input_command_display },
-  { "Toggle Strict Mode", S_INPUT, m_scrn, KB_X, KB_Y + 7 * 8, { 0 }, dsda_input_strict_mode },
-  { "Open Console", S_INPUT, m_scrn, KB_X, KB_Y + 8 * 8, { 0 }, dsda_input_console },
-  { "Toggle Coord. Display", S_INPUT, m_scrn, KB_X, KB_Y + 9 * 8, { 0 }, dsda_input_coordinate_display },
+  { "Open Console", S_INPUT, m_scrn, KB_X, KB_Y + 6 * 8, { 0 }, dsda_input_console },
+  { "Fake Archvile Jump", S_INPUT, m_scrn, KB_X, KB_Y + 7 * 8, { 0 }, dsda_input_avj },
+  { "Toggle Command Display", S_INPUT, m_scrn, KB_X, KB_Y + 8 * 8, { 0 }, dsda_input_command_display },
+  { "Toggle Strict Mode", S_INPUT, m_scrn, KB_X, KB_Y + 9 * 8, { 0 }, dsda_input_strict_mode },
+  { "Toggle Coord. Display", S_INPUT, m_scrn, KB_X, KB_Y + 10 * 8, { 0 }, dsda_input_coordinate_display },
+  { "Toggle Extended HUD", S_INPUT, m_scrn, KB_X, KB_Y + 11 * 8, { 0 }, dsda_input_exhud },
 
   { "<- PREV", S_SKIP | S_PREV, m_null, KB_PREV, KB_Y + 20 * 8, { hexen_keys_settings } },
   { 0, S_SKIP | S_END, m_null }
@@ -3187,7 +3196,7 @@ setup_menu_t* gen_settings[] =
 #define G_X2 284
 
 static const char *videomodes[] = {
-  "8bit", "32bit",
+  "Software",
 #ifdef GL_DOOM
   "OpenGL",
   "OpenGL3",
@@ -3205,18 +3214,19 @@ setup_menu_t gen_settings1[] = { // General Settings screen1
   {"Aspect Ratio",                   S_CHOICE,           m_null, G_X, G_Y+ 4*8, {"render_aspect"}, 0, M_ChangeAspectRatio, render_aspects_list},
   {"Fullscreen Video mode",          S_YESNO,            m_null, G_X, G_Y+ 5*8, {"use_fullscreen"}, 0, M_ChangeFullScreen},
   {"Software Exclusive Fullscreen",  S_YESNO,            m_null, G_X, G_Y+ 6*8, {"exclusive_fullscreen"}, 0, M_ChangeVideoMode},
-  {"Status Bar and Menu Appearance", S_CHOICE,           m_null, G_X, G_Y+ 7*8, {"render_stretch_hud"}, 0, M_ChangeStretch, render_stretch_list},
-  {"Vertical Sync",                  S_YESNO,            m_null, G_X, G_Y+ 8*8, {"render_vsync"}, 0, M_ChangeVideoMode},
-  {"Enable Translucency",            S_YESNO,            m_null, G_X, G_Y+ 9*8, {"translucency"}, 0, M_Trans},
+  {"OpenGL Exclusive Fullscreen",    S_YESNO,            m_null, G_X, G_Y+ 7*8, {"gl_exclusive_fullscreen"}, 0, M_ChangeVideoMode},
+  {"Status Bar and Menu Appearance", S_CHOICE,           m_null, G_X, G_Y+ 8*8, {"render_stretch_hud"}, 0, M_ChangeStretch, render_stretch_list},
+  {"Vertical Sync",                  S_YESNO,            m_null, G_X, G_Y+ 9*8, {"render_vsync"}, 0, M_ChangeVideoMode},
   {"Translucency filter percentage", S_NUM,              m_null, G_X, G_Y+10*8, {"tran_filter_pct"}, 0, M_Trans},
   {"Uncapped Framerate",             S_YESNO,            m_null, G_X, G_Y+11*8, {"uncapped_framerate"}, 0, M_ChangeUncappedFrameRate},
+  {"Render Limit Per Tic",           S_NUM,              m_null, G_X, G_Y+12*8, {"dsda_subframes"}},
 
-  {"Sound & Music",                  S_SKIP|S_TITLE,     m_null, G_X, G_Y+13*8},
-  {"Number of Sound Channels",       S_NUM|S_PRGWARN,    m_null, G_X, G_Y+14*8, {"snd_channels"}},
-  {"Enable v1.1 Pitch Effects",      S_YESNO,            m_null, G_X, G_Y+15*8, {"pitched_sounds"}},
-  {"PC Speaker emulation",           S_YESNO|S_PRGWARN,  m_null, G_X, G_Y+16*8, {"snd_pcspeaker"}},
-  {"Preferred MIDI player",          S_CHOICE|S_PRGWARN, m_null, G_X, G_Y+17*8, {"snd_midiplayer"}, 0, M_ChangeMIDIPlayer, midiplayers},
-  {"Disable Sound Cutoffs",          S_YESNO,            m_null, G_X, G_Y+18*8, {"full_sounds"}},
+  {"Sound & Music",                  S_SKIP|S_TITLE,     m_null, G_X, G_Y+14*8},
+  {"Number of Sound Channels",       S_NUM|S_PRGWARN,    m_null, G_X, G_Y+15*8, {"snd_channels"}},
+  {"Enable v1.1 Pitch Effects",      S_YESNO,            m_null, G_X, G_Y+16*8, {"pitched_sounds"}},
+  {"PC Speaker emulation",           S_YESNO|S_PRGWARN,  m_null, G_X, G_Y+17*8, {"snd_pcspeaker"}},
+  {"Preferred MIDI player",          S_CHOICE|S_PRGWARN, m_null, G_X, G_Y+18*8, {"snd_midiplayer"}, 0, M_ChangeMIDIPlayer, midiplayers},
+  {"Disable Sound Cutoffs",          S_YESNO,            m_null, G_X, G_Y+19*8, {"full_sounds"}},
 
   // Button for resetting to defaults
   {0,S_RESET,m_null,X_BUTTON,Y_BUTTON},
@@ -3265,9 +3275,9 @@ setup_menu_t gen_settings2[] = { // General Settings screen2
   {"Enable Joystick",                  S_YESNO, m_null, G_X, G_Y+ 3*8, {"use_joystick"}},
 
   {"Files Preloaded at Game Startup",  S_SKIP|S_TITLE, m_null, G_X, G_Y + 5*8},
-  {"WAD # 1",                          S_FILE, m_null, GF_X, G_Y+ 6*8, {"wadfile_1"}},
+  {"WAD #1",                           S_FILE, m_null, GF_X, G_Y+ 6*8, {"wadfile_1"}},
   {"WAD #2",                           S_FILE, m_null, GF_X, G_Y+ 7*8, {"wadfile_2"}},
-  {"DEH/BEX # 1",                      S_FILE, m_null, GF_X, G_Y+ 8*8, {"dehfile_1"}},
+  {"DEH/BEX #1",                       S_FILE, m_null, GF_X, G_Y+ 8*8, {"dehfile_1"}},
   {"DEH/BEX #2",                       S_FILE, m_null, GF_X, G_Y+ 9*8, {"dehfile_2"}},
 
   {"Miscellaneous",                    S_SKIP|S_TITLE,  m_null, G_X, G_Y+11*8},
@@ -3301,8 +3311,8 @@ setup_menu_t gen_settings3[] = { // General Settings screen2
   {"Mouse",                       S_SKIP|S_TITLE,m_null, G_X, G_Y+11*8},
   {"Dbl-Click As Use",            S_YESNO, m_null, G_X, G_Y+12*8, {"mouse_doubleclick_as_use"}},
   {"Carry Fractional Tics",       S_YESNO, m_null, G_X, G_Y+13*8, {"mouse_carrytics"}},
-  {"Enable Mouselook",            S_YESNO, m_null, G_X, G_Y+14*8, {"movement_mouselook"}, 0, M_ChangeMouseLook},
-  {"No Vertical Mouse",           S_YESNO, m_null, G_X, G_Y+15*8, {"movement_mousenovert"}},
+  {"Enable Mouselook",            S_YESNO, m_dsda, G_X, G_Y+14*8, {"movement_mouselook"}, 0},
+  {"No Vertical Mouse",           S_YESNO, m_dsda, G_X, G_Y+15*8, {"movement_mousenovert"}},
   {"Invert Mouse",                S_YESNO, m_null, G_X, G_Y+16*8, {"movement_mouseinvert"}, 0, M_ChangeMouseInvert},
   {"Max View Pitch",              S_NUM,   m_null, G_X, G_Y+17*8, {"movement_maxviewpitch"}, 0, M_ChangeMaxViewPitch},
   {"Mouse Strafe Divisor",        S_NUM,   m_null, G_X, G_Y+18*8, {"movement_mousestrafedivisor"}},
@@ -3344,7 +3354,7 @@ setup_menu_t gen_settings5[] = { // General Settings screen3
   {"Software Options",               S_SKIP|S_TITLE, m_null, G_X, G_Y+1*8},
   {"Screen Multiple Factor (1-None)", S_NUM,m_null,G_X,G_Y+2*8, {"render_screen_multiply"}, 0, M_ChangeScreenMultipleFactor},
   {"Integer Screen Scaling",    S_YESNO,  m_null, G_X, G_Y+3*8, {"integer_scaling"}, 0, M_ChangeScreenMultipleFactor},
-#ifdef GL_DOOM
+
   {"OpenGL Options",             S_SKIP|S_TITLE,m_null,G_X,G_Y+5*8},
   {"Multisampling (0-None)",    S_NUM|S_PRGWARN|S_CANT_GL_ARB_MULTISAMPLEFACTOR,m_null,G_X,G_Y+6*8, {"render_multisampling"}, 0, M_ChangeMultiSample},
   {"Field Of View",             S_NUM,    m_null, G_X, G_Y+ 7*8, {"render_fov"}, 0, M_ChangeFOV},
@@ -3357,7 +3367,6 @@ setup_menu_t gen_settings5[] = { // General Settings screen3
   {"Adjust Sprite Clipping",    S_CHOICE, m_null, G_X, G_Y+14*8, {"gl_spriteclip"}, 0, M_ChangeSpriteClip, gl_spriteclipmodes},
   {"Item out of Floor offset",  S_NUM,    m_null, G_X, G_Y+15*8, {"gl_sprite_offset"}, 0, M_ChangeSpriteClip},
   {"Health Bar Above Monsters", S_YESNO,  m_null, G_X, G_Y+16*8, {"health_bar"}},
-#endif
 
   {"<- PREV",S_SKIP|S_PREV, m_null,KB_PREV, KB_Y+20*8, {gen_settings4}},
   {"NEXT ->",S_SKIP|S_NEXT,m_null,KB_NEXT,KB_Y+20*8, {gen_settings6}},
@@ -3433,20 +3442,20 @@ setup_menu_t gen_settings8[] = { // General Settings screen4
 
 setup_menu_t dsda_gen_settings[] = {
   { "DSDA-Doom Settings", S_SKIP | S_TITLE, m_null, G_X, G_Y + 1 * 8 },
-  { "Strict Mode", S_YESNO, m_null, G_X, G_Y + 2 * 8, { "dsda_strict_mode" }, 0, dsda_ChangeStrictMode },
+  { "Strict Mode", S_YESNO, m_dsda, G_X, G_Y + 2 * 8, { "dsda_strict_mode" }, 0 },
   { "Cycle Ghost Colors", S_YESNO, m_null, G_X, G_Y + 3 * 8, { "dsda_cycle_ghost_colors" } },
   { "Automatic Key Frame Interval (s)", S_NUM, m_null, G_X, G_Y + 4 * 8, { "dsda_auto_key_frame_interval" } },
   { "Automatic Key Frame Depth", S_NUM | S_PRGWARN, m_null, G_X, G_Y + 5 * 8, { "dsda_auto_key_frame_depth" } },
-  { "Use Extended Hud", S_YESNO, m_null, G_X, G_Y + 6 * 8, { "dsda_exhud" } },
+  { "Use Extended Hud", S_YESNO, m_dsda, G_X, G_Y + 6 * 8, { "dsda_exhud" } },
   { "Wipe At Full Speed", S_YESNO, m_null, G_X, G_Y + 7 * 8, { "dsda_wipe_at_full_speed" } },
   { "Show Demo Attempts", S_YESNO, m_null, G_X, G_Y + 8 * 8, { "dsda_show_demo_attempts" } },
   { "Fine Sensitivity", S_NUM, m_null, G_X, G_Y + 9 * 8, { "dsda_fine_sensitivity" } },
   { "Hide Status Bar Horns", S_YESNO, m_null, G_X, G_Y + 10 * 8, { "dsda_hide_horns" } },
   { "Organize My Save Files", S_YESNO, m_null, G_X, G_Y + 11 * 8, { "dsda_organized_saves" } },
-  { "Show Command Display (TAS)", S_YESNO, m_null, G_X, G_Y + 12 * 8, { "dsda_command_display" } },
+  { "Show Command Display (TAS)", S_YESNO, m_dsda, G_X, G_Y + 12 * 8, { "dsda_command_display" } },
   { "Command History", S_NUM, m_null, G_X, G_Y + 13 * 8, { "dsda_command_history_size" } },
   { "Hide Empty Commands", S_YESNO, m_null, G_X, G_Y + 14 * 8, { "dsda_hide_empty_commands" } },
-  { "Show Coordinate Display (TAS)", S_YESNO, m_null, G_X, G_Y + 15 * 8, { "dsda_coordinate_display" } },
+  { "Show Coordinate Display (TAS)", S_YESNO, m_dsda, G_X, G_Y + 15 * 8, { "dsda_coordinate_display" } },
   { "Skip Quit Prompt", S_YESNO, m_null, G_X, G_Y + 16 * 8, { "dsda_skip_quit_prompt" } },
   { "Show Split Data", S_YESNO, m_null, G_X, G_Y + 17 * 8, { "dsda_show_split_data" } },
   { "Text File Author", S_NAME, m_null, G_X, G_Y + 18 * 8, { "dsda_player_name" } },
@@ -3457,10 +3466,7 @@ setup_menu_t dsda_gen_settings[] = {
 
 void M_Trans(void) // To reset translucency after setting it in menu
 {
-  general_translucency = default_translucency; //e6y: Fix for "translucency won't change until you restart the engine"
-
-  if (general_translucency)
-    R_InitTranMap(0);
+  R_InitTranMap(0);
 }
 
 // To (un)set fullscreen video after menu changes
@@ -3487,7 +3493,7 @@ void M_ChangeDemoSmoothTurns(void)
 void M_ChangeTextureParams(void)
 {
 #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     gld_InitTextureParams();
     gld_FlushTextures();
@@ -3746,6 +3752,43 @@ static setup_menu_t **setup_screens[] =
   gen_settings,      // killough 10/98
 };
 
+/* killough 8/15/98: when changes are allowed to sync-critical variables */
+static int allow_changes(void)
+{
+ return !(demoplayback || demorecording || netgame);
+}
+
+static void M_UpdateCurrent(default_t* def)
+{
+  /* cph - requires rewrite of m_misc.c */
+  if (def->current)
+  {
+    if (allow_changes())  /* killough 8/15/98 */
+      *def->current = *def->location.pi;
+    else if (*def->current != *def->location.pi)
+      warn_about_changes(S_LEVWARN); /* killough 8/15/98 */
+  }
+}
+
+static void M_SettingUpdated(setup_menu_t *setting, int update_current)
+{
+  if (update_current)
+  {
+    if (setting->m_flags & (S_LEVWARN | S_PRGWARN))
+      warn_about_changes(setting->m_flags & (S_LEVWARN | S_PRGWARN));
+    else
+      M_UpdateCurrent(setting->var.def);
+  }
+
+  if (setting->m_group == m_dsda)
+  {
+    dsda_ResetTransient((dsda_setting_t *) setting->var.def->location.pi);
+  }
+
+  if (setting->action)
+    setting->action();
+}
+
 // phares 4/19/98:
 // M_ResetDefaults() resets all values for a setup screen to default values
 //
@@ -3801,8 +3844,7 @@ static void M_ResetDefaults(void)
             else
               *dp->location.pi = dp->defaultvalue.i;
 
-            if (p->action)
-              p->action();
+            M_SettingUpdated(p, false);
 
             goto end;
           }
@@ -4337,6 +4379,37 @@ static inline int GetButtons(const unsigned int max, int data)
   return -1;
 }
 
+typedef struct {
+  int input;
+  int setting;
+  int allowed_in_strict_mode;
+} toggle_input_t;
+
+static toggle_input_t toggle_inputs[] = {
+  { dsda_input_strict_mode, dsda_strict_mode, true },
+  { dsda_input_novert, dsda_novert, true },
+  { dsda_input_mlook, dsda_mouselook, true },
+  { dsda_input_autorun, dsda_autorun, true },
+  { dsda_input_messages, dsda_show_messages, true },
+  { dsda_input_command_display, dsda_command_display, false },
+  { dsda_input_coordinate_display, dsda_coordinate_display, false },
+  { dsda_input_exhud, dsda_exhud, true },
+  { -1 }
+};
+
+static void M_HandleToggles(void)
+{
+  toggle_input_t* toggle;
+
+  for (toggle = toggle_inputs; toggle->input != -1; toggle++) {
+    if (
+      dsda_InputActivated(toggle->input) &&
+      (toggle->allowed_in_strict_mode || !dsda_StrictMode())
+    )
+      dsda_ToggleSetting(toggle->setting);
+  }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // M_Responder
@@ -4500,7 +4573,14 @@ dboolean M_Responder (event_t* ev) {
     {
       if (saveCharIndex > 0)
       {
-        saveCharIndex--;
+        if (!strncmp(savegamestrings[saveSlot], MAPNAME(gameepisode, gamemap), SAVESTRINGSIZE))
+        {
+          saveCharIndex = 0;
+        }
+        else
+        {
+          saveCharIndex--;
+        }
         savegamestrings[saveSlot][saveCharIndex] = 0;
       }
     }
@@ -4584,13 +4664,7 @@ dboolean M_Responder (event_t* ev) {
   // If there is no active menu displayed...
 
   if (!menuactive) {                                           // phares
-    if (dsda_InputActivated(dsda_input_autorun))               //  V
-    {
-      autorun = !autorun;
-      return true;
-    }
-
-    if (ch == KEYD_F1)
+    if (ch == KEYD_F1)                                         //  V
     {
       M_StartControlPanel ();
 
@@ -4640,14 +4714,6 @@ dboolean M_Responder (event_t* ev) {
       return true;
     }
 
-    // Toggle messages
-    if (dsda_InputActivated(dsda_input_messages))
-    {
-      M_ChangeMessages(0);
-      S_StartSound(NULL,g_sfx_swtchn);
-      return true;
-    }
-
     if (dsda_InputActivated(dsda_input_quickload))
     {
       S_StartSound(NULL,g_sfx_swtchn);
@@ -4675,7 +4741,7 @@ dboolean M_Responder (event_t* ev) {
     {
 //e6y
 #ifdef GL_DOOM
-      if (V_LegacyGLActive() && gl_hardware_gamma)
+      if (V_IsLegacyOpenGLMode() && gl_hardware_gamma)
       {
         static char str[200];
         useglgamma++;
@@ -4846,7 +4912,7 @@ dboolean M_Responder (event_t* ev) {
     }
 
 #ifdef GL_DOOM
-    if (V_GLActive())
+    if (V_IsOpenGLMode())
     {
       if (dsda_InputActivated(dsda_input_showalive) && !dsda_StrictMode())
       {
@@ -4857,40 +4923,7 @@ dboolean M_Responder (event_t* ev) {
     }
 #endif
 
-    if (dsda_InputActivated(dsda_input_command_display) && !dsda_StrictMode())
-    {
-      dsda_command_display = !dsda_command_display;
-      doom_printf("Command Display %s", dsda_command_display ? "on" : "off");
-    }
-
-    if (dsda_InputActivated(dsda_input_coordinate_display) && !dsda_StrictMode())
-    {
-      dsda_coordinate_display = !dsda_coordinate_display;
-      doom_printf("Coordinate Display %s", dsda_coordinate_display ? "on" : "off");
-    }
-
-    if (dsda_InputActivated(dsda_input_strict_mode))
-    {
-      dsda_strict_mode = !dsda_strict_mode;
-      doom_printf("Strict Mode %s", dsda_strict_mode ? "on" : "off");
-    }
-
-    if (dsda_InputActivated(dsda_input_mlook)) // mouse look
-    {
-      movement_mouselook = !movement_mouselook;
-      M_ChangeMouseLook();
-      doom_printf("Mouselook %s", movement_mouselook ? "on" : "off");
-      // Don't eat the keypress in this case.
-      // return true;
-    }
-
-    if (dsda_InputActivated(dsda_input_novert))
-    {
-      movement_mousenovert = !movement_mousenovert;
-      doom_printf("Vertical Mouse Movement %s", movement_mousenovert ? "off" : "on");
-      // Don't eat the keypress in this case.
-      // return true;
-    }
+    M_HandleToggles();
 
     if (dsda_InputActivated(dsda_input_hud))   // heads-up mode
     {
@@ -4993,21 +5026,7 @@ dboolean M_Responder (event_t* ev) {
         if (action == MENU_ENTER) {
           *ptr1->var.def->location.pi = !*ptr1->var.def->location.pi; // killough 8/15/98
 
-          // phares 4/14/98:
-          // If not in demoplayback, demorecording, or netgame,
-          // and there's a second variable in var2, set that
-          // as well
-
-          // killough 8/15/98: add warning messages
-
-          if (ptr1->m_flags & (S_LEVWARN | S_PRGWARN))
-            warn_about_changes(ptr1->m_flags &    // killough 10/98
-             (S_LEVWARN | S_PRGWARN));
-          else
-            M_UpdateCurrent(ptr1->var.def);
-
-          if (ptr1->action)      // killough 10/98
-            ptr1->action();
+          M_SettingUpdated(ptr1, true);
 
           //e6y
           #ifdef GL_DOOM
@@ -5031,8 +5050,7 @@ dboolean M_Responder (event_t* ev) {
             return true; // ignore
           *ptr1->var.def->location.pi = ch;
         }
-        if (ptr1->action)      // killough 10/98
-          ptr1->action();
+        M_SettingUpdated(ptr1, false);
         M_SelectDone(ptr1);                      // phares 4/17/98
         return true;
       }
@@ -5065,17 +5083,7 @@ dboolean M_Responder (event_t* ev) {
               else {
                 *ptr1->var.def->location.pi = value;
 
-                /* killough 8/9/98: fix numeric vars
-                 * killough 8/15/98: add warning message
-                 */
-                if (ptr1->m_flags & (S_LEVWARN | S_PRGWARN))
-                  warn_about_changes(ptr1->m_flags &
-                   (S_LEVWARN | S_PRGWARN));
-                else
-                  M_UpdateCurrent(ptr1->var.def);
-
-                if (ptr1->action)      // killough 10/98
-                  ptr1->action();
+                M_SettingUpdated(ptr1, true);
               }
             }
             M_SelectDone(ptr1);     // phares 4/17/98
@@ -5163,21 +5171,7 @@ dboolean M_Responder (event_t* ev) {
           }
         }
         if (action == MENU_ENTER) {
-          // phares 4/14/98:
-          // If not in demoplayback, demorecording, or netgame,
-          // and there's a second variable in var2, set that
-          // as well
-
-          // killough 8/15/98: add warning messages
-
-          if (ptr1->m_flags & (S_LEVWARN | S_PRGWARN))
-            warn_about_changes(ptr1->m_flags &    // killough 10/98
-             (S_LEVWARN | S_PRGWARN));
-          else
-            M_UpdateCurrent(ptr1->var.def);
-
-          if (ptr1->action)      // killough 10/98
-            ptr1->action();
+          M_SettingUpdated(ptr1, true);
           M_SelectDone(ptr1);                           // phares 4/17/98
         }
         return true;
@@ -5923,6 +5917,7 @@ void M_Drawer (void)
 
 void M_ClearMenus (void)
 {
+  currentMenu = &MainDef;
   menuactive = mnact_inactive;
   print_warning_about_changes = 0;     // killough 8/15/98
   default_verify = 0;                  // killough 10/98

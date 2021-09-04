@@ -57,7 +57,7 @@ int renderH;
 
 void I_UpdateRenderSize(void)
 {
-	if (V_GLActive())
+	if (V_IsOpenGLMode())
 	{
 		renderW = SCREENWIDTH;
 		renderH = SCREENHEIGHT;
@@ -112,11 +112,11 @@ unsigned char *I_GrabScreen(void)
   I_UpdateRenderSize();
 
   #ifdef GL_DOOM
-  if (V_LegacyGLActive())
+  if (V_IsLegacyOpenGLMode())
   {
     return gld_ReadScreen();
   } // TODO: Implement screen reading for OpenGL 3.3!
-  else if (V_GL3Active()) return NULL;
+  else if (V_IsOpenGL3Mode()) return NULL;
   #endif
 
   size = renderW * renderH * 3;

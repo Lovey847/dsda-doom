@@ -28,7 +28,6 @@
 #include "am_map.h"
 
 #include "dsda/analysis.h"
-#include "dsda/mobj_extension.h"
 #include "dsda/ghost.h"
 #include "dsda/hud.h"
 #include "dsda/command_display.h"
@@ -38,8 +37,6 @@
 #include "dsda.h"
 
 #define TELEFRAG_DAMAGE 10000
-#define STROLLER_THRESHOLD 25
-#define TURBO_THRESHOLD 50
 
 // command-line toggles
 int dsda_track_pacifist;
@@ -132,11 +129,11 @@ void dsda_WatchCard(card_t card) {
 
 void dsda_WatchDamage(mobj_t* target, mobj_t* inflictor, mobj_t* source, int damage) {
   if (
-    ((source && source->player) || (inflictor && inflictor->dsda_extension.player_damaged_barrel)) \
+    ((source && source->player) || (inflictor && inflictor->intflags & MIF_PLAYER_DAMAGED_BARREL)) \
     && damage != TELEFRAG_DAMAGE
   ) {
     if (target->type == MT_BARREL)
-      target->dsda_extension.player_damaged_barrel = true;
+      target->intflags |= MIF_PLAYER_DAMAGED_BARREL;
     else if (!target->player)
       dsda_pacifist = false;
   }
@@ -161,7 +158,7 @@ void dsda_WatchDeath(mobj_t* thing) {
 
 void dsda_WatchKill(player_t* player, mobj_t* target) {
   player->killcount++;
-  if (target->dsda_extension.spawned_by_icon) player->maxkilldiscount++;
+  if (target->intflags & MIF_SPAWNED_BY_ICON) player->maxkilldiscount++;
 }
 
 void dsda_WatchResurrection(mobj_t* target) {
@@ -171,7 +168,7 @@ void dsda_WatchResurrection(mobj_t* target) {
     (
       (target->flags ^ MF_COUNTKILL) &
       (MF_FRIEND | MF_COUNTKILL)
-    ) || target->dsda_extension.spawned_by_icon
+    ) || target->intflags & MIF_SPAWNED_BY_ICON
   ) return;
 
   for (i = 0; i < g_maxplayers; ++i) {
@@ -213,7 +210,7 @@ void dsda_WatchSpawn(mobj_t* spawned) {
 }
 
 void dsda_WatchIconSpawn(mobj_t* spawned) {
-  spawned->dsda_extension.spawned_by_icon = true;
+  spawned->intflags |= MIF_SPAWNED_BY_ICON;
 
   // Fix count from dsda_WatchSpawn
   // We can't know inside P_SpawnMobj what the source is
@@ -229,19 +226,24 @@ int dsda_MaxKillRequirement() {
 void dsda_WatchCommand(void) {
   int i;
   ticcmd_t* cmd;
+  dsda_pclass_t *player_class;
 
   for (i = 0; i < g_maxplayers; ++i) {
     if (!playeringame[i]) continue;
 
     cmd = &players[i].cmd;
+    player_class = &pclass[players[i].pclass];
 
     if (cmd->buttons & BT_USE && dsda_time_use)
       dsda_AddSplit(DSDA_SPLIT_USE);
 
-    if (cmd->sidemove != 0 || abs(cmd->forwardmove) > STROLLER_THRESHOLD)
+    if (cmd->sidemove != 0 || abs(cmd->forwardmove) > player_class->stroller_threshold)
       dsda_stroller = false;
 
-    if (abs(cmd->sidemove) > TURBO_THRESHOLD || abs(cmd->forwardmove) > TURBO_THRESHOLD)
+    if (
+      abs(cmd->sidemove) > player_class->turbo_threshold ||
+      abs(cmd->forwardmove) > player_class->turbo_threshold
+    )
       dsda_turbo = true;
   }
 
@@ -276,7 +278,7 @@ void dsda_WatchLevelCompletion(void) {
     // max rules: everything dead that affects kill counter except icon spawns
     if (
       !((mobj->flags ^ MF_COUNTKILL) & (MF_FRIEND | MF_COUNTKILL)) \
-      && !mobj->dsda_extension.spawned_by_icon \
+      && !(mobj->intflags & MIF_SPAWNED_BY_ICON) \
       && mobj->health > 0
     ) {
       ++dsda_missed_monsters;
@@ -371,7 +373,7 @@ void dsda_WatchDeferredInitNew(skill_t skill, int episode, int map) {
 
   dsda_ResetTracking();
 
-  AM_ResetIDDTcheat();
+  dsda_ResetRevealMap();
   G_CheckDemoStatus();
 
   demo_name = dsda_NewDemoName();
@@ -398,7 +400,11 @@ void dsda_WatchLevelReload(int* reloaded) {
 
 void dsda_WatchRecordDemo(const char* name) {
   size_t base_size;
-  if (dsda_demo_name_base != NULL) return;
+
+  if (dsda_demo_name_base != NULL) {
+    dsda_InitSettings();
+    return;
+  }
 
   base_size = strlen(name) - 3;
   dsda_demo_name_base = malloc(base_size);

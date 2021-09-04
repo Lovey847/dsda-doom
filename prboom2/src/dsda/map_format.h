@@ -1,5 +1,5 @@
 //
-// Copyright(C) 2020 by Ryan Krafnick
+// Copyright(C) 2021 by Ryan Krafnick
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License
@@ -12,15 +12,30 @@
 // GNU General Public License for more details.
 //
 // DESCRIPTION:
-//	DSDA Mobj Extension
+//	DSDA Map Format
 //
 
-#ifndef __DSDA_MOBJ_EXTENSION__
-#define __DSDA_MOBJ_EXTENSION__
+#ifndef __DSDA_MAP_FORMAT__
+#define __DSDA_MAP_FORMAT__
 
-typedef struct dsda_mobj_extension_s {
-  dboolean player_damaged_barrel;
-  dboolean spawned_by_icon;
-} dsda_mobj_extension_t;
+#include "doomtype.h"
+
+typedef struct {
+  dboolean hexen;
+  dboolean polyobjs;
+  dboolean acs;
+  dboolean mapinfo;
+  dboolean sndseq;
+  dboolean sndinfo;
+  size_t mapthing_size;
+  size_t maplinedef_size;
+} map_format_t;
+
+extern map_format_t map_format;
+
+int dsda_DoorType(int index);
+dboolean dsda_IsExitLine(int index);
+dboolean dsda_IsTeleportLine(int index);
+void dsda_DetectMapFormat(void);
 
 #endif
