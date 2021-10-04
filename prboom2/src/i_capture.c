@@ -39,6 +39,8 @@
 #include "i_system.h"
 #include "i_capture.h"
 #include "m_argv.h"
+#include "dsda/palette.h"
+#include "w_wad.h"
 
 #ifdef HAVE_FFMPEG
 
@@ -150,17 +152,21 @@ static AVCodecContext *vid_ctx = NULL;
 static AVFrame *vid_frame = NULL;
 static AVPacket *vid_packet = NULL;
 
-static const char *vid_codecName;
+static const char *vid_codecname;
 
-static int vid_curFrame;
+static int vid_curframe;
 
+// playpal in YCbCr (BT.709)
+static byte *vid_playpal = NULL;
+
+// Encode vid_frame into vid_file with vid_codec
 static dboolean I_EncodeFrame(AVFrame *f) {
   int ret;
 
   // Send frame to encoder
   ret = avcodec_send_frame(vid_ctx, f);
   if (ret < 0) {
-    lprintf(LO_WARN, "I_EncodeFrame: Couldn't send frame to %s!\n", vid_codecName);
+    lprintf(LO_WARN, "I_EncodeFrame: Couldn't send frame to %s!\n", vid_codecname);
     return false;
   }
 
@@ -184,6 +190,54 @@ static dboolean I_EncodeFrame(AVFrame *f) {
   return true;
 }
 
+// Allocate vid_playpal, which is the playpal in YCbCr
+static void I_AllocYUVPlaypal(void) {
+  dsda_playpal_t *playpaldata = dsda_PlayPalData();
+  const byte *playpal = V_GetPlaypal();
+  byte r, g, b;
+  int playpalsize = W_LumpLength(W_GetNumForName(playpaldata->lump_name));
+  int i;
+
+  vid_playpal = Z_Malloc(3 * playpalsize, PU_STATIC, 0);
+
+  // Parse playpal into vid_playpal
+  for (i = playpalsize*3; i > 0;) {
+    i -= 3;
+
+    // Read RGB palette color into YCbCr palette
+    // Assume r, g and b are normalized from 0 to 1
+    //
+    // BT.709
+    // Kr = 0.2126
+    // Kg = 0.7152
+    // Kb = 0.0722
+    //
+    // Y = 16 + ((r*Kr)*219) + ((g*Kg)*219) + ((b*Kb)*219)
+    //
+    // Assume Y is normalized from 0 to 1
+    //
+    // Cb = 128 + ((b-Y)/(1-Kb))*128
+    // Cr = 128 + ((r-Y)/(1-Kr))*128
+
+    r = playpal[i];
+    g = playpal[i+1];
+    b = playpal[i+2];
+
+    // 47 = Kr*219 * 256 / 255
+    // 157 = Kg*219 * 256 / 255
+    // 16 = Kb*219 * 256 / 255
+    vid_playpal[i] = 16 + ((r*47)>>8) + ((g*157)>>8) + ((b*16)>>8);
+
+    // 26 = Kr/(1-Kb) * 112 * 256 / 255
+    // 87 = Kg/(1-Kb) * 112 * 256 / 255
+    vid_playpal[i+1] = 128 - ((r*26)>>8) - ((g*87)>>8) + ((b*112)>>8);
+
+    // 102 = Kg/(1-Kr) * 112 * 256 / 255
+    // 10 = Kb/(1-Kr) * 112 * 256 / 255
+    vid_playpal[i+2] = 128 + ((r*112)>>8) - ((g*102)>>8) - ((b*10)>>8);
+  }
+}
+
 void I_CapturePrep(const char *fn) {
   int arg;
   int ret;
@@ -199,6 +253,18 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
+  // We can only record with even width & height
+  if ((SCREENWIDTH&1) || (SCREENHEIGHT&1)) {
+    lprintf(LO_WARN, "I_CapturePrep: Can only record with even width&height!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Allocate vid_playpal
+  I_AllocYUVPlaypal();
+
   // Open output file
   vid_file = fopen(vid_fname, "wb");
   if (!vid_file) {
@@ -212,12 +278,12 @@ void I_CapturePrep(const char *fn) {
   // Find encoder
   if ((arg = M_CheckParm("-vc")) && (arg < myargc-1)) {
     // Video codec override
-    vid_codecName = myargv[arg+1];
-  } else vid_codecName = "libx264";
+    vid_codecname = myargv[arg+1];
+  } else vid_codecname = "libx264";
 
-  vid_codec = avcodec_find_encoder_by_name(vid_codecName);
+  vid_codec = avcodec_find_encoder_by_name(vid_codecname);
   if (!vid_codec) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't find encoder named %s!\n", vid_codecName);
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't find encoder named %s!\n", vid_codecname);
     capturing_video = 0;
 
     I_CaptureFinish();
@@ -298,12 +364,15 @@ void I_CapturePrep(const char *fn) {
 
   lprintf(LO_INFO, "I_CapturePrep: Video capture initiated\n");
   capturing_video = 1;
-  vid_curFrame = 0;
+  vid_curframe = 0;
   I_AtExit(I_CaptureFinish, true);
 }
 
 // Free anything that needs to be freed
 void I_CaptureFinish(void) {
+  // Free vid_playpal
+  if (vid_playpal) Z_Free(vid_playpal);
+
   // Flush encoder output
   if (capturing_video) I_EncodeFrame(NULL);
 
@@ -318,13 +387,31 @@ void I_CaptureFinish(void) {
   capturing_video = 0;
 }
 
+// Get the average chrominance of a 2x2 pixel region
+static void I_AverageChrominance(byte *out, byte *pixels) {
+  int cb, cr;
+
+  cb = vid_playpal[pixels[0]*3+1];
+  cr = vid_playpal[pixels[0]*3+2];
+
+  cb += vid_playpal[pixels[1]*3+1];
+  cr += vid_playpal[pixels[1]*3+2];
+
+  cb += vid_playpal[pixels[screens[0].pitch]*3+1];
+  cr += vid_playpal[pixels[screens[0].pitch]*3+2];
+
+  cb += vid_playpal[pixels[screens[0].pitch+1]*3+1];
+  cr += vid_playpal[pixels[screens[0].pitch+1]*3+2];
+
+  out[0] = cb>>2;
+  out[1] = cr>>2;
+}
+
 // Encode a single frame of video
 void I_CaptureFrame(void) {
   int ret;
-  int r, g, b;
   int x, y, cx, cy;
-  uint8_t *ptr;
-  const uint8_t *pal, *palp; // RGB array
+  byte *ptr, *palp;
 
   if (!capturing_video) return;
 
@@ -335,40 +422,16 @@ void I_CaptureFrame(void) {
     return;
   }
 
-  // Get playpal
   // TODO: Hook into I_SetPalette to get the current palette!
   //       For now, use the first playpal
-  pal = V_GetPlaypal();
-
-  // Read RGB frame into NV12 frame buffer
-  // Assume r, g and b are normalized from 0 to 1
-  //
-  // BT.709
-  // Kr = 0.2126
-  // Kg = 0.7152
-  // Kb = 0.0722
-  //
-  // Y = 16 + ((r*Kr)*219) + ((g*Kg)*219) + ((b*Kb)*219)
-  //
-  // Assume Y is normalized from 0 to 1
-  //
-  // Cb = 128 + ((b-Y)/(1-Kb))*128
-  // Cr = 128 + ((r-Y)/(1-Kr))*128
 
   // Write luminance
   ptr = vid_frame->data[0];
   for (y = 0; y < SCREENHEIGHT; ++y) {
     for (x = 0; x < SCREENWIDTH; ++x) {
-      palp = pal + screens[0].data[y*screens[0].pitch + x]*3;
+      palp = vid_playpal + screens[0].data[y*screens[0].pitch + x]*3;
 
-      r = palp[0];
-      g = palp[1];
-      b = palp[2];
-
-      // 47 = Kr*219 * 256 / 255
-      // 157 = Kg*219 * 256 / 255
-      // 16 = Kb*219 * 256 / 255
-      *ptr++ = 16 + ((r*47)>>8) + ((g*157)>>8) + ((b*16)>>8);
+      *ptr++ = palp[0];
     }
   }
 
@@ -376,34 +439,17 @@ void I_CaptureFrame(void) {
   ptr = vid_frame->data[1];
   for (y = 0; y < SCREENHEIGHT; y += 2) {
     for (x = 0; x < SCREENWIDTH; x += 2) {
-      // Average color of all 4 pixels
-      r = g = b = 0;
-      for (cy = y; cy < y+2; ++cy) {
-        for (cx = x; cx < x+2; ++cx) {
-          palp = pal + screens[0].data[cy*screens[0].pitch + cx]*3;
-
-          r += palp[0]>>2;
-          g += palp[1]>>2;
-          b += palp[2]>>2;
-        }
-      }
-
-      // 26 = Kr/(1-Kb) * 112 * 256 / 255
-      // 87 = Kg/(1-Kb) * 112 * 256 / 255
-      *ptr++ = 128 - ((r*26)>>8) - ((g*87)>>8) + ((b*112)>>8);
-
-      // 102 = Kg/(1-Kr) * 112 * 256 / 255
-      // 10 = Kb/(1-Kr) * 112 * 256 / 255
-      *ptr++ = 128 + ((r*112)>>8) - ((g*102)>>8) - ((b*10)>>8);
+      I_AverageChrominance(ptr, screens[0].data + y*screens[0].pitch + x);
+      ptr += 2;
     }
   }
 
-  vid_frame->pts = vid_curFrame++;
+  vid_frame->pts = vid_curframe++;
 
   if (!I_EncodeFrame(vid_frame))
-    lprintf(LO_WARN, "I_CaptureFrame: Couldn't encode frame %d!\n", vid_curFrame);
+    lprintf(LO_WARN, "I_CaptureFrame: Couldn't encode frame %d!\n", vid_curframe);
 
-  lprintf(LO_INFO, "I_CaptureFrame: Frame %d captured\n", vid_curFrame);
+  lprintf(LO_INFO, "I_CaptureFrame: Frame %d captured\n", vid_curframe);
 }
 
 // FFmpeg process
