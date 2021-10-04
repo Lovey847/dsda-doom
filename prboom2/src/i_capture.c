@@ -38,6 +38,15 @@
 #include "lprintf.h"
 #include "i_system.h"
 #include "i_capture.h"
+#include "m_argv.h"
+
+#ifdef HAVE_FFMPEG
+
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+
+#endif //HAVE_FFMPEG
 
 
 int capturing_video = 0;
@@ -131,8 +140,274 @@ static int parsecommand (char *out, const char *in, int len)
   return 1;
 }
 
+// FFmpeg library
+#ifdef HAVE_FFMPEG
 
+static FILE *vid_file = NULL;
 
+static const AVCodec *vid_codec = NULL;
+static AVCodecContext *vid_ctx = NULL;
+static AVFrame *vid_frame = NULL;
+static AVPacket *vid_packet = NULL;
+
+static const char *vid_codecName;
+
+static int vid_curFrame;
+
+static dboolean I_EncodeFrame(AVFrame *f) {
+  int ret;
+
+  // Send frame to encoder
+  ret = avcodec_send_frame(vid_ctx, f);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_EncodeFrame: Couldn't send frame to %s!\n", vid_codecName);
+    return false;
+  }
+
+  // Flush the encoder's output
+  for (;;) {
+    ret = avcodec_receive_packet(vid_ctx, vid_packet);
+
+    // If the encoder's been flushed, break out of loop
+    if ((ret == AVERROR(EAGAIN)) || (ret == AVERROR_EOF)) break;
+
+    // Fatal error occurred
+    if (ret < 0) {
+      lprintf(LO_WARN, "I_EncodeFrame: An error occurred while flushing the encoder!\n");
+      return false;
+    }
+
+    fwrite(vid_packet->data, 1, vid_packet->size, vid_file);
+    av_packet_unref(vid_packet);
+  }
+
+  return true;
+}
+
+void I_CapturePrep(const char *fn) {
+  int arg;
+  int ret;
+
+  vid_fname = fn;
+
+  // We can't record opengl in this mode
+  if (V_IsOpenGLMode()) {
+    lprintf(LO_WARN, "I_CapturePrep: Cannot record in OpenGL mode!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Open output file
+  vid_file = fopen(vid_fname, "wb");
+  if (!vid_file) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't open %s!\n", vid_fname);
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Find encoder
+  if ((arg = M_CheckParm("-vc")) && (arg < myargc-1)) {
+    // Video codec override
+    vid_codecName = myargv[arg+1];
+  } else vid_codecName = "libx264";
+
+  vid_codec = avcodec_find_encoder_by_name(vid_codecName);
+  if (!vid_codec) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't find encoder named %s!\n", vid_codecName);
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Allocate encoder context
+  vid_ctx = avcodec_alloc_context3(vid_codec);
+  if (!vid_ctx) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't allocate encoder context!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Allocate packet, used when encoding
+  vid_packet = av_packet_alloc();
+  if (!vid_packet) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't allocate packet!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Open encoder
+  vid_ctx->bit_rate = 16*1024*1024; // 8Mbits/s
+  vid_ctx->width = SCREENWIDTH;
+  vid_ctx->height = SCREENHEIGHT;
+  vid_ctx->time_base = (AVRational){1, cap_fps};
+  vid_ctx->framerate = (AVRational){cap_fps, 1};
+  vid_ctx->gop_size = cap_fps/2;
+  vid_ctx->max_b_frames = 1;
+  vid_ctx->pix_fmt = AV_PIX_FMT_NV12;
+
+  lprintf(LO_INFO, "%d %d\n", SCREENWIDTH, SCREENHEIGHT);
+
+  // Bitrate override
+  if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1)) {
+    vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
+  }
+
+  ret = avcodec_open2(vid_ctx, vid_codec, NULL);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize codec context!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Allocate video frame
+  vid_frame = av_frame_alloc();
+  if (!vid_frame) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't allocate video frame!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  vid_frame->format = AV_PIX_FMT_NV12;
+  vid_frame->width = SCREENWIDTH;
+  vid_frame->height = SCREENHEIGHT;
+
+  ret = av_frame_get_buffer(vid_frame, 0);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't get video frame buffers!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Initialization done
+  I_SetSoundCap();
+
+  lprintf(LO_INFO, "I_CapturePrep: Video capture initiated\n");
+  capturing_video = 1;
+  vid_curFrame = 0;
+  I_AtExit(I_CaptureFinish, true);
+}
+
+// Free anything that needs to be freed
+void I_CaptureFinish(void) {
+  // Flush encoder output
+  if (capturing_video) I_EncodeFrame(NULL);
+
+  if (vid_ctx) avcodec_free_context(&vid_ctx);
+  if (vid_frame) av_frame_free(&vid_frame);
+  if (vid_packet) av_packet_free(&vid_packet);
+  if (vid_file) {
+    fclose(vid_file);
+    vid_file = NULL;
+  }
+
+  capturing_video = 0;
+}
+
+// Encode a single frame of video
+void I_CaptureFrame(void) {
+  int ret;
+  int r, g, b;
+  int x, y, cx, cy;
+  uint8_t *ptr;
+  const uint8_t *pal, *palp; // RGB array
+
+  if (!capturing_video) return;
+
+  // Make sure frame is writable
+  ret = av_frame_make_writable(vid_frame);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_CaptureFrame: Couldn't make video frame writable!\n");
+    return;
+  }
+
+  // Get playpal
+  // TODO: Hook into I_SetPalette to get the current palette!
+  //       For now, use the first playpal
+  pal = V_GetPlaypal();
+
+  // Read RGB frame into NV12 frame buffer
+  // Assume r, g and b are normalized from 0 to 1
+  //
+  // BT.709
+  // Kr = 0.2126
+  // Kg = 0.7152
+  // Kb = 0.0722
+  //
+  // Y = 16 + ((r*Kr)*219) + ((g*Kg)*219) + ((b*Kb)*219)
+  //
+  // Assume Y is normalized from 0 to 1
+  //
+  // Cb = 128 + ((b-Y)/(1-Kb))*128
+  // Cr = 128 + ((r-Y)/(1-Kr))*128
+
+  // Write luminance
+  ptr = vid_frame->data[0];
+  for (y = 0; y < SCREENHEIGHT; ++y) {
+    for (x = 0; x < SCREENWIDTH; ++x) {
+      palp = pal + screens[0].data[y*screens[0].pitch + x]*3;
+
+      r = palp[0];
+      g = palp[1];
+      b = palp[2];
+
+      // 47 = Kr*219 * 256 / 255
+      // 157 = Kg*219 * 256 / 255
+      // 16 = Kb*219 * 256 / 255
+      *ptr++ = 16 + ((r*47)>>8) + ((g*157)>>8) + ((b*16)>>8);
+    }
+  }
+
+  // Write chrominance
+  ptr = vid_frame->data[1];
+  for (y = 0; y < SCREENHEIGHT; y += 2) {
+    for (x = 0; x < SCREENWIDTH; x += 2) {
+      // Average color of all 4 pixels
+      r = g = b = 0;
+      for (cy = y; cy < y+2; ++cy) {
+        for (cx = x; cx < x+2; ++cx) {
+          palp = pal + screens[0].data[cy*screens[0].pitch + cx]*3;
+
+          r += palp[0]>>2;
+          g += palp[1]>>2;
+          b += palp[2]>>2;
+        }
+      }
+
+      // 26 = Kr/(1-Kb) * 112 * 256 / 255
+      // 87 = Kg/(1-Kb) * 112 * 256 / 255
+      *ptr++ = 128 - ((r*26)>>8) - ((g*87)>>8) + ((b*112)>>8);
+
+      // 102 = Kg/(1-Kr) * 112 * 256 / 255
+      // 10 = Kb/(1-Kr) * 112 * 256 / 255
+      *ptr++ = 128 + ((r*112)>>8) - ((g*102)>>8) - ((b*10)>>8);
+    }
+  }
+
+  vid_frame->pts = vid_curFrame++;
+
+  if (!I_EncodeFrame(vid_frame))
+    lprintf(LO_WARN, "I_CaptureFrame: Couldn't encode frame %d!\n", vid_curFrame);
+
+  lprintf(LO_INFO, "I_CaptureFrame: Frame %d captured\n", vid_curFrame);
+}
+
+// FFmpeg process
+#else //HAVE_FFMPEG
 
 // popen3() implementation -
 // starts a child process
@@ -640,3 +915,5 @@ void I_CaptureFinish (void)
     remove (cap_tempfile2);
   }
 }
+
+#endif //HAVE_FFMPEG
