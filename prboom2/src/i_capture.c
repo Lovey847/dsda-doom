@@ -238,6 +238,77 @@ static void I_AllocYUVPlaypal(void) {
   }
 }
 
+// Open video encoder context
+static dboolean I_OpenVideoContext(void) {
+  int arg, ret;
+
+  // Find encoder
+  if ((arg = M_CheckParm("-vc")) && (arg < myargc-1)) {
+    // Video codec override
+    vid_codecname = myargv[arg+1];
+  } else vid_codecname = "libx264";
+
+  vid_codec = avcodec_find_encoder_by_name(vid_codecname);
+  if (!vid_codec) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't find encoder named %s!\n", vid_codecname);
+
+    return false;
+  }
+
+  // Allocate encoder context
+  vid_ctx = avcodec_alloc_context3(vid_codec);
+  if (!vid_ctx) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't allocate encoder context!\n");
+
+    return false;
+  }
+
+  // Open encoder
+  vid_ctx->bit_rate = 16*1024*1024; // 16Mbits/s
+  vid_ctx->width = SCREENWIDTH;
+  vid_ctx->height = SCREENHEIGHT;
+  vid_ctx->time_base = (AVRational){1, cap_fps};
+  vid_ctx->framerate = (AVRational){cap_fps, 1};
+  vid_ctx->gop_size = cap_fps/2;
+  vid_ctx->max_b_frames = 1;
+  vid_ctx->pix_fmt = AV_PIX_FMT_NV12;
+
+  lprintf(LO_INFO, "%d %d\n", SCREENWIDTH, SCREENHEIGHT);
+
+  // Bitrate override
+  if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1)) {
+    vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
+  }
+
+  ret = avcodec_open2(vid_ctx, vid_codec, NULL);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize codec context!\n");
+
+    return false;
+  }
+
+  // Allocate video frame
+  vid_frame = av_frame_alloc();
+  if (!vid_frame) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't allocate video frame!\n");
+
+    return false;
+  }
+
+  vid_frame->format = AV_PIX_FMT_NV12;
+  vid_frame->width = SCREENWIDTH;
+  vid_frame->height = SCREENHEIGHT;
+
+  ret = av_frame_get_buffer(vid_frame, 0);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't get video frame buffers!\n");
+
+    return false;
+  }
+
+  return true;
+}
+
 void I_CapturePrep(const char *fn) {
   int arg;
   int ret;
@@ -275,31 +346,6 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
-  // Find encoder
-  if ((arg = M_CheckParm("-vc")) && (arg < myargc-1)) {
-    // Video codec override
-    vid_codecname = myargv[arg+1];
-  } else vid_codecname = "libx264";
-
-  vid_codec = avcodec_find_encoder_by_name(vid_codecname);
-  if (!vid_codec) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't find encoder named %s!\n", vid_codecname);
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
-
-  // Allocate encoder context
-  vid_ctx = avcodec_alloc_context3(vid_codec);
-  if (!vid_ctx) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't allocate encoder context!\n");
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
-
   // Allocate packet, used when encoding
   vid_packet = av_packet_alloc();
   if (!vid_packet) {
@@ -310,49 +356,9 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
-  // Open encoder
-  vid_ctx->bit_rate = 16*1024*1024; // 8Mbits/s
-  vid_ctx->width = SCREENWIDTH;
-  vid_ctx->height = SCREENHEIGHT;
-  vid_ctx->time_base = (AVRational){1, cap_fps};
-  vid_ctx->framerate = (AVRational){cap_fps, 1};
-  vid_ctx->gop_size = cap_fps/2;
-  vid_ctx->max_b_frames = 1;
-  vid_ctx->pix_fmt = AV_PIX_FMT_NV12;
-
-  lprintf(LO_INFO, "%d %d\n", SCREENWIDTH, SCREENHEIGHT);
-
-  // Bitrate override
-  if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1)) {
-    vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
-  }
-
-  ret = avcodec_open2(vid_ctx, vid_codec, NULL);
-  if (ret < 0) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize codec context!\n");
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
-
-  // Allocate video frame
-  vid_frame = av_frame_alloc();
-  if (!vid_frame) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't allocate video frame!\n");
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
-
-  vid_frame->format = AV_PIX_FMT_NV12;
-  vid_frame->width = SCREENWIDTH;
-  vid_frame->height = SCREENHEIGHT;
-
-  ret = av_frame_get_buffer(vid_frame, 0);
-  if (ret < 0) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't get video frame buffers!\n");
+  // Initialize video encoder context
+  if (!I_OpenVideoContext()) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't open video encoder context!\n");
     capturing_video = 0;
 
     I_CaptureFinish();
@@ -408,12 +414,10 @@ static void I_AverageChrominance(byte *out, byte *pixels) {
 }
 
 // Encode a single frame of video
-void I_CaptureFrame(void) {
+static void I_EncodeVideoFrame(void) {
   int ret;
-  int x, y, cx, cy;
-  byte *ptr, *palp;
-
-  if (!capturing_video) return;
+  int x, y;
+  byte *ptr;
 
   // Make sure frame is writable
   ret = av_frame_make_writable(vid_frame);
@@ -428,11 +432,8 @@ void I_CaptureFrame(void) {
   // Write luminance
   ptr = vid_frame->data[0];
   for (y = 0; y < SCREENHEIGHT; ++y) {
-    for (x = 0; x < SCREENWIDTH; ++x) {
-      palp = vid_playpal + screens[0].data[y*screens[0].pitch + x]*3;
-
-      *ptr++ = palp[0];
-    }
+    for (x = 0; x < SCREENWIDTH; ++x)
+      *ptr++ = vid_playpal[screens[0].data[y*screens[0].pitch + x]*3];
   }
 
   // Write chrominance
@@ -448,6 +449,14 @@ void I_CaptureFrame(void) {
 
   if (!I_EncodeFrame(vid_frame))
     lprintf(LO_WARN, "I_CaptureFrame: Couldn't encode frame %d!\n", vid_curframe);
+}
+
+// Encode a single frame of video
+void I_CaptureFrame(void) {
+  if (!capturing_video) return;
+
+  // Encode video frame
+  I_EncodeVideoFrame();
 }
 
 // FFmpeg process
