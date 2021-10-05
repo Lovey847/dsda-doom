@@ -448,8 +448,6 @@ void I_CaptureFrame(void) {
 
   if (!I_EncodeFrame(vid_frame))
     lprintf(LO_WARN, "I_CaptureFrame: Couldn't encode frame %d!\n", vid_curframe);
-
-  lprintf(LO_INFO, "I_CaptureFrame: Frame %d captured\n", vid_curframe);
 }
 
 // FFmpeg process
