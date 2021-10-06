@@ -45,8 +45,8 @@
 #ifdef HAVE_FFMPEG
 
 #include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
+#include "matroska.h"
 
 #endif //HAVE_FFMPEG
 
@@ -183,8 +183,8 @@ static dboolean I_EncodeFrame(AVFrame *f) {
       return false;
     }
 
-    fwrite(vid_packet->data, 1, vid_packet->size, vid_file);
-    av_packet_unref(vid_packet);
+    // Write packet to MKV
+    MKV_WriteVideoFrame(vid_packet); // unrefs packet
   }
 
   return true;
@@ -243,10 +243,7 @@ static dboolean I_OpenVideoContext(void) {
   int arg, ret;
 
   // Find encoder
-  if ((arg = M_CheckParm("-vc")) && (arg < myargc-1)) {
-    // Video codec override
-    vid_codecname = myargv[arg+1];
-  } else vid_codecname = "libx264";
+  vid_codecname = "libx264";
 
   vid_codec = avcodec_find_encoder_by_name(vid_codecname);
   if (!vid_codec) {
@@ -272,8 +269,6 @@ static dboolean I_OpenVideoContext(void) {
   vid_ctx->gop_size = cap_fps/2;
   vid_ctx->max_b_frames = 1;
   vid_ctx->pix_fmt = AV_PIX_FMT_NV12;
-
-  lprintf(LO_INFO, "%d %d\n", SCREENWIDTH, SCREENHEIGHT);
 
   // Bitrate override
   if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1)) {
@@ -365,6 +360,15 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
+  // Initialize MKV muxer
+  if (!MKV_Init(vid_file, SCREENWIDTH, SCREENHEIGHT, cap_fps)) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize mkv muxer!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
   // Initialization done
   I_SetSoundCap();
 
@@ -379,8 +383,11 @@ void I_CaptureFinish(void) {
   // Free vid_playpal
   if (vid_playpal) Z_Free(vid_playpal);
 
-  // Flush encoder output
-  if (capturing_video) I_EncodeFrame(NULL);
+  // If we're recording, flush encoder output and deinit muxer
+  if (capturing_video) {
+    I_EncodeFrame(NULL);
+    MKV_End();
+  }
 
   if (vid_ctx) avcodec_free_context(&vid_ctx);
   if (vid_frame) av_frame_free(&vid_frame);

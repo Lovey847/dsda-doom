@@ -393,6 +393,13 @@ function(AddGameExecutable TARGET SOURCES)
         )
     endif()
 
+    if (FFMPEG_FOUND)
+        set(SOURCES
+            ${SOURCES}
+            matroska.c
+        )
+    endif ()
+
     if(WIN32)
         add_definitions("-DUSE_WIN32_PCSOUND_DRIVER -DUSE_WINDOWS_LAUNCHER")
         set(SOURCES
