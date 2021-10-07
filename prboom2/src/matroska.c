@@ -240,6 +240,8 @@ static void WriteInfo(FILE *f, int fps) {
 static void WriteTracks(FILE *f, int width, int height, int fps) {
   int len, entryLen, videoLen;
 
+  fps = 1000000000/fps;
+
   videoLen =
     ElementSize(0x9a, 1) + // FlagInterlaced
     ElementSize(0xb0, MinBytesForNum(width)) + // PixelWidth
@@ -254,6 +256,7 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
     ElementSize(0x55aa, 1) + // FlagForced
     ElementSize(0x9c, 1) + // FlagLacing
     ElementSize(0x6de7, 1) + // MinCache
+    ElementSize(0x23e383, MinBytesForNum(fps)) + // DefaultDuration
     ElementSize(0x23314f, 8) + // TrackTimestampScale
     ElementSize(0x55ee, 1) + // MaxBlockAdditionID
     ElementSize(0x86, V_CODEC_ID_SIZE) + // CodecID
@@ -290,6 +293,9 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
 
   WriteElement(f, 0x6de7, 1); // MinCache
   WriteNum(f, 0, 1);
+
+  WriteElement(f, 0x23e383, MinBytesForNum(fps)); // DefaultDuration
+  WriteMinNum(f, fps);
 
   WriteElement(f, 0x23314f, 8); // TrackTimestampScale
   WriteDouble(f, 1.0);
