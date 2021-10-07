@@ -241,6 +241,7 @@ static void I_AllocYUVPlaypal(void) {
 // Open video encoder context
 static dboolean I_OpenVideoContext(void) {
   int arg, ret;
+  AVDictionary *opts = NULL;
 
   // Find encoder
   vid_codecname = "libx264";
@@ -269,18 +270,28 @@ static dboolean I_OpenVideoContext(void) {
   vid_ctx->gop_size = cap_fps/2;
   vid_ctx->max_b_frames = 1;
   vid_ctx->pix_fmt = AV_PIX_FMT_NV12;
+  vid_ctx->colorspace = AVCOL_SPC_BT709;
+  vid_ctx->color_trc = AVCOL_TRC_BT709;
+  vid_ctx->color_primaries = AVCOL_PRI_BT709;
+  vid_ctx->color_range = AVCOL_RANGE_MPEG;
+
+  av_dict_set(&opts, "profile", "baseline", 0);
+  av_dict_set(&opts, "preset", "ultrafast", 0);
+  av_dict_set(&opts, "tune", "zerolatency", 0);
 
   // Bitrate override
   if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1)) {
     vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
   }
 
-  ret = avcodec_open2(vid_ctx, vid_codec, NULL);
+  ret = avcodec_open2(vid_ctx, vid_codec, &opts);
   if (ret < 0) {
     lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize codec context!\n");
 
     return false;
   }
+
+  av_dict_free(&opts);
 
   // Allocate video frame
   vid_frame = av_frame_alloc();
