@@ -18,12 +18,32 @@
 
 #include "matroska.h"
 
+//////////////////////////
+// Local macros
+#define sizeofstr(x) (sizeof(x)-1)
+#define MUX_APP (PACKAGE_NAME "_v" PACKAGE_VERSION)
+#define MUX_APP_SIZE sizeofstr(MUX_APP)
+
 ////////////////////////////
 // Private data
 static FILE *mux_file;
 
 /////////////////////////////
 // Private functions
+
+// Get minimum amount of bytes for EBML-encoded number
+static int MinBytesForEBMLNum(uint_64_t num) {
+  int ret;
+  uint_64_t shift;
+
+  // ebml-encoded numbers are always unsigned so
+  // we don't have to worry about signedness here
+  for (shift = 49; shift && ((num>>shift)&0xff) == 0; shift -= 7);
+
+  // Convert shift from bit shift to
+  // number of bytes in ebml-encoded number
+  return shift/7+1;
+}
 
 // Write EBML-encoded number
 static void WriteEBMLNum(FILE *f, uint_64_t num) {
@@ -143,12 +163,36 @@ static void WriteEBMLSchema(FILE *f) {
   WriteNum(f, 3, 1);
 }
 
+// Write matroska info element
+static void WriteInfo(FILE *f, int fps) {
+  fps = 1000000000/fps;
+
+  // Info
+  WriteElement(f, 0x1549a966,
+               MUX_APP_SIZE*2 +
+               MinBytesForEBMLNum(MUX_APP_SIZE)*2 +
+               MinBytesForNum(fps) +
+               MinBytesForEBMLNum(MinBytesForNum(fps)) +
+               7);
+
+  WriteElement(f, 0x4d80, MUX_APP_SIZE); // MuxingApp
+  WriteString(f, MUX_APP);
+
+  WriteElement(f, 0x5741, MUX_APP_SIZE); // WritingApp
+  WriteString(f, MUX_APP);
+
+  WriteElement(f, 0x2ad7b1, MinBytesForNum(fps)); // TimestampScale
+  WriteMinNum(f, fps);
+}
+
 //////////////////////////////////////
 // Public functions
 dboolean MKV_Init(FILE *f, int width, int height, int fps) {
   (void)width; (void)height; (void)fps;
 
   WriteEBMLSchema(f);
+  WriteElement(f, 0x18538067, 0); // Matroska segment
+  WriteInfo(f, fps);
 
   mux_file = f;
   return true;
