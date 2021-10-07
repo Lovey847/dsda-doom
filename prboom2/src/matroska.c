@@ -24,6 +24,11 @@
 #define MUX_APP (PACKAGE_NAME "_v" PACKAGE_VERSION)
 #define MUX_APP_SIZE sizeofstr(MUX_APP)
 
+#define V_CODEC_ID "V_MPEG4/ISO/AVC"
+#define V_CODEC_ID_SIZE sizeofstr(V_CODEC_ID)
+
+#define TRACK_VIDEO 1
+
 ////////////////////////////
 // Private data
 static FILE *mux_file;
@@ -191,14 +196,96 @@ static void WriteInfo(FILE *f, int fps) {
   WriteMinNum(f, fps);
 }
 
+// Write matroska tracks element
+static void WriteTracks(FILE *f, int width, int height, int fps) {
+  static const byte float_one[4] = {
+    0x3f, 0x80, 0x00, 0x00
+  };
+
+  int len, entryLen, videoLen;
+
+  videoLen =
+    ElementSize(0x9a, 1) + // FlagInterlaced
+    ElementSize(0xb0, MinBytesForNum(width)) + // PixelWidth
+    ElementSize(0xba, MinBytesForNum(height)); // PixelHeight
+
+  entryLen =
+    ElementSize(0xd7, 1) + // TrackNumber
+    ElementSize(0x73c5, 1) + // TrackUID
+    ElementSize(0x83, 1) + // TrackType
+    ElementSize(0xb9, 1) + // FlagEnabled
+    ElementSize(0x88, 1) + // FlagDefault
+    ElementSize(0x55aa, 1) + // FlagForced
+    ElementSize(0x9c, 1) + // FlagLacing
+    ElementSize(0x6de7, 1) + // MinCache
+    ElementSize(0x23314f, 4) + // TrackTimestampScale
+    ElementSize(0x55ee, 1) + // MaxBlockAdditionID
+    ElementSize(0x86, V_CODEC_ID_SIZE) + // CodecID
+    ElementSize(0xaa, 1) + // CodecDecodeAll
+    ElementSize(0xe0, videoLen); // Video
+
+  len =
+    ElementSize(0xae, entryLen); // TrackEntry
+
+  WriteElement(f, 0x1654ae6b, len); // Tracks
+
+  WriteElement(f, 0xae, entryLen); // TrackEntry
+
+  WriteElement(f, 0xd7, 1); // TrackNumber
+  WriteNum(f, TRACK_VIDEO, 1);
+
+  WriteElement(f, 0x73c5, 1); // TrackUID
+  WriteNum(f, TRACK_VIDEO, 1);
+
+  WriteElement(f, 0x83, 1); // TrackType
+  WriteNum(f, 1, 1); // (1 means video track)
+
+  WriteElement(f, 0xb9, 1); // FlagEnabled
+  WriteNum(f, 1, 1);
+
+  WriteElement(f, 0x88, 1); // FlagDefault
+  WriteNum(f, 1, 1);
+
+  WriteElement(f, 0x55aa, 1); // FlagForced
+  WriteNum(f, 0, 1);
+
+  WriteElement(f, 0x9c, 1); // FlagLacing
+  WriteNum(f, 0, 1);
+
+  WriteElement(f, 0x6de7, 1); // MinCache
+  WriteNum(f, 0, 1);
+
+  WriteElement(f, 0x23314f, 4); // TrackTimestampScale
+  fwrite(float_one, 1, 4, f);
+
+  WriteElement(f, 0x55ee, 1); // MaxBlockAdditionID
+  WriteNum(f, 0, 1);
+
+  WriteElement(f, 0x86, V_CODEC_ID_SIZE); // CodecID
+  WriteString(f, V_CODEC_ID);
+
+  WriteElement(f, 0xaa, 1); // CodecDecodeAll
+  WriteNum(f, 1, 1);
+
+  WriteElement(f, 0xe0, videoLen); // Video
+
+  WriteElement(f, 0x9a, 1); // FlagInterlaced
+  WriteNum(f, 2, 1); // (2 means progressive)
+
+  WriteElement(f, 0xb0, MinBytesForNum(width)); // PixelWidth
+  WriteMinNum(f, width);
+
+  WriteElement(f, 0xba, MinBytesForNum(height)); // PixelHeight
+  WriteMinNum(f, height);
+}
+
 //////////////////////////////////////
 // Public functions
 dboolean MKV_Init(FILE *f, int width, int height, int fps) {
-  (void)width; (void)height; (void)fps;
-
   WriteEBMLSchema(f);
   WriteElement(f, 0x18538067, 0); // Matroska segment
   WriteInfo(f, fps);
+  WriteTracks(f, width, height, fps);
 
   mux_file = f;
   return true;
