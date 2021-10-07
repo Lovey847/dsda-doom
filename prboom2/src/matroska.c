@@ -144,6 +144,11 @@ static void WriteElement(FILE *f, unsigned int id, uint_64_t len) {
   WriteEBMLNum(f, len);
 }
 
+// Get size of EBML element, in bytes
+static size_t ElementSize(unsigned int id, uint_64_t len) {
+  return MinBytesForNum(id) + MinBytesForEBMLNum(len) + len;
+}
+
 // Write EBML schema
 static void WriteEBMLSchema(FILE *f) {
   WriteElement(f, 0x1a45dfa3, 35); // EBML
@@ -165,15 +170,16 @@ static void WriteEBMLSchema(FILE *f) {
 
 // Write matroska info element
 static void WriteInfo(FILE *f, int fps) {
+  int len;
+
   fps = 1000000000/fps;
 
-  // Info
-  WriteElement(f, 0x1549a966,
-               MUX_APP_SIZE*2 +
-               MinBytesForEBMLNum(MUX_APP_SIZE)*2 +
-               MinBytesForNum(fps) +
-               MinBytesForEBMLNum(MinBytesForNum(fps)) +
-               7);
+  len =
+    ElementSize(0x4d80, MUX_APP_SIZE) + // MuxingApp
+    ElementSize(0x5741, MUX_APP_SIZE) + // WritingApp
+    ElementSize(0x2ad7b1, MinBytesForNum(fps)); // TimestampScale
+
+  WriteElement(f, 0x1549a966, len); // Info
 
   WriteElement(f, 0x4d80, MUX_APP_SIZE); // MuxingApp
   WriteString(f, MUX_APP);
