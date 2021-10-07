@@ -17,6 +17,7 @@
 //
 
 #include "matroska.h"
+#include "doomstat.h"
 
 //////////////////////////
 // Local macros
@@ -27,11 +28,17 @@
 #define V_CODEC_ID "V_MPEG4/ISO/AVC"
 #define V_CODEC_ID_SIZE sizeofstr(V_CODEC_ID)
 
+#define SEG_START 52
+
 #define TRACK_VIDEO 1
 
 ////////////////////////////
 // Private data
 static FILE *mux_file;
+
+// Position of Info's Duration element's data
+// in mux_file
+static size_t durationPos;
 
 /////////////////////////////
 // Private functions
@@ -51,6 +58,27 @@ static int MinBytesForEBMLNum(uint_64_t num) {
   // Convert shift from bit shift to
   // number of bytes in ebml-encoded number
   return shift/7+1;
+}
+
+// Write double-precision floating-point nnumber
+static void WriteDouble(FILE *f, double num) {
+  byte stream[8];
+  byte tmp[4];
+  *(double*)stream = num;
+
+#ifndef WORDS_BIGENDIAN
+  *(int*)tmp = *(int*)stream;
+  stream[0] = stream[7];
+  stream[1] = stream[6];
+  stream[2] = stream[5];
+  stream[3] = stream[4];
+  stream[4] = tmp[3];
+  stream[5] = tmp[2];
+  stream[6] = tmp[1];
+  stream[7] = tmp[0];
+#endif
+
+  fwrite(stream, 8, 1, f);
 }
 
 // Write EBML-encoded number
@@ -188,7 +216,8 @@ static void WriteInfo(FILE *f, int fps) {
   len =
     ElementSize(0x4d80, MUX_APP_SIZE) + // MuxingApp
     ElementSize(0x5741, MUX_APP_SIZE) + // WritingApp
-    ElementSize(0x2ad7b1, MinBytesForNum(fps)); // TimestampScale
+    ElementSize(0x2ad7b1, MinBytesForNum(fps)) + // TimestampScale
+    ElementSize(0x4489, 8); // Duration
 
   WriteElement(f, 0x1549a966, len); // Info
 
@@ -200,14 +229,15 @@ static void WriteInfo(FILE *f, int fps) {
 
   WriteElement(f, 0x2ad7b1, MinBytesForNum(fps)); // TimestampScale
   WriteMinNum(f, fps);
+
+  WriteElement(f, 0x4489, 8); // Duration
+
+  durationPos = ftell(f);
+  WriteNum(f, 0, 8);
 }
 
 // Write matroska tracks element
 static void WriteTracks(FILE *f, int width, int height, int fps) {
-  static const byte float_one[4] = {
-    0x3f, 0x80, 0x00, 0x00
-  };
-
   int len, entryLen, videoLen;
 
   videoLen =
@@ -224,7 +254,7 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
     ElementSize(0x55aa, 1) + // FlagForced
     ElementSize(0x9c, 1) + // FlagLacing
     ElementSize(0x6de7, 1) + // MinCache
-    ElementSize(0x23314f, 4) + // TrackTimestampScale
+    ElementSize(0x23314f, 8) + // TrackTimestampScale
     ElementSize(0x55ee, 1) + // MaxBlockAdditionID
     ElementSize(0x86, V_CODEC_ID_SIZE) + // CodecID
     ElementSize(0xaa, 1) + // CodecDecodeAll
@@ -261,8 +291,8 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
   WriteElement(f, 0x6de7, 1); // MinCache
   WriteNum(f, 0, 1);
 
-  WriteElement(f, 0x23314f, 4); // TrackTimestampScale
-  fwrite(float_one, 1, 4, f);
+  WriteElement(f, 0x23314f, 8); // TrackTimestampScale
+  WriteDouble(f, 1.0);
 
   WriteElement(f, 0x55ee, 1); // MaxBlockAdditionID
   WriteNum(f, 0, 1);
@@ -287,9 +317,11 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
 
 static void WriteCluster(FILE *f, AVPacket *p) {
   int len;
+  const size_t pos = ftell(f);
 
   len =
     ElementSize(0xe7, MinBytesForNum(p->pts)) + // Timestamp
+    ElementSize(0xa7, MinBytesForNum(pos-SEG_START)) + // Position
     ElementSize(0xa3, 4 + p->size); // SimpleBlock
 
   WriteElement(f, 0x1f43b675, len); // Cluster
@@ -297,8 +329,12 @@ static void WriteCluster(FILE *f, AVPacket *p) {
   WriteElement(f, 0xe7, MinBytesForNum(p->pts)); // Timestamp
   WriteMinNum(f, p->pts);
 
+  WriteElement(f, 0xa7, MinBytesForNum(pos-SEG_START)); // Position
+  WriteMinNum(f, pos-SEG_START);
+
   WriteElement(f, 0xa3, 4 + p->size); // SimpleBlock
   WriteNum(f, 0x81000100, 4);
+
   fwrite(p->data, 1, p->size, f);
 }
 
@@ -318,10 +354,14 @@ void MKV_End(void) {
   // Write file size (minus EBML schema and
   // size of matroska segment element) to
   // the matroska's segment element's size
-  const size_t segmentLen = ftell(mux_file)-52;
+  const size_t segmentLen = ftell(mux_file)-SEG_START;
 
-  fseek(mux_file, 52-MinBytesForNum(segmentLen), SEEK_SET);
-  WriteMinNum(mux_file, segmentLen);
+  fseek(mux_file, SEG_START-7, SEEK_SET);
+  WriteNum(mux_file, segmentLen, 7);
+
+  // Write demo length to the info element's duration element
+  fseek(mux_file, durationPos, SEEK_SET);
+  WriteDouble(mux_file, gametic);
 
   fseek(mux_file, 0, SEEK_END); // Go back to the end of the file
 }
