@@ -199,7 +199,15 @@ dboolean MKV_Init(FILE *f, int width, int height, int fps) {
 }
 
 void MKV_End(void) {
-  return;
+  // Write file size (minus EBML schema and
+  // size of matroska segment element) to
+  // the matroska's segment element's size
+  const size_t segmentLen = ftell(mux_file)-52;
+
+  fseek(mux_file, 52-MinBytesForNum(segmentLen), SEEK_SET);
+  WriteMinNum(mux_file, segmentLen);
+
+  fseek(mux_file, 0, SEEK_END); // Go back to the end of the file
 }
 
 void MKV_WriteVideoFrame(AVPacket *p) {
