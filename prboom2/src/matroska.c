@@ -32,6 +32,8 @@
 
 #define TRACK_VIDEO 1
 
+#define BASE_CUES 128
+
 ////////////////////////////
 // Private data
 static FILE *mux_file;
@@ -39,6 +41,16 @@ static FILE *mux_file;
 // Position of Info's Duration element's data
 // in mux_file
 static size_t durationPos;
+
+// Cue list entry
+typedef struct cue_s {
+  uint_64_t timestamp; // Absolute timestamp
+  size_t cluster; // Cluster's segment position
+} cue_t;
+
+// List of cues to write after ending cluster transmittion
+static cue_t *cues, *curcue; // Dynamic buffer of cues
+static size_t maxcues; // Maximum number of cues, extended if necessary
 
 /////////////////////////////
 // Private functions
@@ -321,6 +333,7 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
   WriteMinNum(f, height);
 }
 
+// Write a matroska cluster element
 static void WriteCluster(FILE *f, AVPacket *p) {
   int len;
   const size_t pos = ftell(f);
@@ -339,9 +352,86 @@ static void WriteCluster(FILE *f, AVPacket *p) {
   WriteMinNum(f, pos-SEG_START);
 
   WriteElement(f, 0xa3, 4 + p->size); // SimpleBlock
-  WriteNum(f, 0x81000100, 4);
+
+  // 0x80 in the last byte means that this block
+  // only contains keyframes
+  if (p->flags&AV_PKT_FLAG_KEY) WriteNum(f, 0x81000080, 4);
+  else WriteNum(f, 0x81000000, 4);
 
   fwrite(p->data, 1, p->size, f);
+}
+
+// Add cue to cues
+static void AddCue(size_t cluster, uint_64_t timestamp) {
+  size_t cuenum = curcue-cues;
+
+  if (cuenum >= maxcues) {
+    maxcues += BASE_CUES;
+    cues = Z_Realloc(cues, maxcues*sizeof(cue_t), PU_STATIC, NULL);
+    curcue = cues+cuenum;
+  }
+
+  curcue->cluster = cluster;
+  curcue->timestamp = timestamp;
+
+  ++curcue;
+}
+
+// Get the size a cue_t would be if it was a CuePoint element
+static int CuePointSize(const cue_t *c) {
+  int len, positionsLen;
+
+  positionsLen =
+    ElementSize(0xf7, 1) + // CueTrack
+    ElementSize(0xf1, MinBytesForNum(c->cluster)); // CueClusterPosition
+
+  len =
+    ElementSize(0xb3, MinBytesForNum(c->timestamp)) + // CueTime
+    ElementSize(0xb7, positionsLen); // CueTrackPositions
+
+  return ElementSize(0xbb, len);
+}
+
+// Write a matroska CuePoint element inside a Cues element
+static void WriteCuePoint(FILE *f, const cue_t *c) {
+  int len, positionsLen;
+
+  positionsLen =
+    ElementSize(0xf7, 1) + // CueTrack
+    ElementSize(0xf1, MinBytesForNum(c->cluster)); // CueClusterPosition
+
+  len =
+    ElementSize(0xb3, MinBytesForNum(c->timestamp)) + // CueTime
+    ElementSize(0xb7, positionsLen); // CueTrackPositions
+
+  WriteElement(f, 0xbb, len); // CuePoint
+
+  WriteElement(f, 0xb3, MinBytesForNum(c->timestamp)); // CueTime
+  WriteMinNum(f, c->timestamp);
+
+  WriteElement(f, 0xb7, positionsLen); // CueTrackPositions
+
+  WriteElement(f, 0xf7, 1); // CueTrack
+  WriteNum(f, TRACK_VIDEO, 1);
+
+  WriteElement(f, 0xf1, MinBytesForNum(c->cluster)); // CueClusterPosition
+  WriteMinNum(f, c->cluster);
+}
+
+// Write matroska cues element
+static void WriteCues(FILE *f) {
+  int len = 0;
+  const cue_t *c;
+
+  // Go through all cues, accumulating element size
+  for (c = cues; c != curcue; ++c)
+    len += CuePointSize(c);
+
+  WriteElement(f, 0x1c53bb6b, len); // Cues
+
+  // Write all cue point elements
+  for (c = cues; c != curcue; ++c)
+    WriteCuePoint(f, c);
 }
 
 //////////////////////////////////////
@@ -352,15 +442,24 @@ dboolean MKV_Init(FILE *f, int width, int height, int fps) {
   WriteInfo(f, fps);
   WriteTracks(f, width, height, fps);
 
+  // Allocate cues
+  maxcues = BASE_CUES;
+  curcue = cues = Z_Malloc(maxcues*sizeof(cue_t), PU_STATIC, NULL);
+
   mux_file = f;
+
   return true;
 }
 
 void MKV_End(void) {
+  size_t segmentLen;
+
+  WriteCues(mux_file);
+
   // Write file size (minus EBML schema and
   // size of matroska segment element) to
   // the matroska's segment element's size
-  const size_t segmentLen = ftell(mux_file)-SEG_START;
+  segmentLen = ftell(mux_file)-SEG_START;
 
   fseek(mux_file, SEG_START-7, SEEK_SET);
   WriteNum(mux_file, segmentLen, 7);
@@ -370,9 +469,22 @@ void MKV_End(void) {
   WriteDouble(mux_file, gametic);
 
   fseek(mux_file, 0, SEEK_END); // Go back to the end of the file
+
+  // Free cues
+  Z_Free(cues);
+  curcue = NULL;
+  maxcues = 0;
 }
 
 void MKV_WriteVideoFrame(AVPacket *p) {
+  size_t cluster = ftell(mux_file)-SEG_START;
+
   WriteCluster(mux_file, p);
+
+  // If this packet is a keyframe, add a cue for it
+  if (p->flags&AV_PKT_FLAG_KEY) {
+    AddCue(cluster, p->pts);
+  }
+
   av_packet_unref(p);
 }
