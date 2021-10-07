@@ -41,6 +41,9 @@ static int MinBytesForEBMLNum(uint_64_t num) {
   int ret;
   uint_64_t shift;
 
+  // Special case for 0
+  if (!num) return 1;
+
   // ebml-encoded numbers are always unsigned so
   // we don't have to worry about signedness here
   for (shift = 49; shift && ((num>>shift)&0xff) == 0; shift -= 7);
@@ -108,6 +111,9 @@ static void WriteNum(FILE *f, uint_64_t num, int size) {
 static int MinBytesForNum(uint_64_t num) {
   byte firstval; // For negative numbers
   uint_64_t shift;
+
+  // Special case for 0
+  if (!num) return 1;
 
   firstval = (num>>LONGLONG(56))&0xff;
 
@@ -279,6 +285,23 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
   WriteMinNum(f, height);
 }
 
+static void WriteCluster(FILE *f, AVPacket *p) {
+  int len;
+
+  len =
+    ElementSize(0xe7, MinBytesForNum(p->pts)) + // Timestamp
+    ElementSize(0xa3, 4 + p->size); // SimpleBlock
+
+  WriteElement(f, 0x1f43b675, len); // Cluster
+
+  WriteElement(f, 0xe7, MinBytesForNum(p->pts)); // Timestamp
+  WriteMinNum(f, p->pts);
+
+  WriteElement(f, 0xa3, 4 + p->size); // SimpleBlock
+  WriteNum(f, 0x81000100, 4);
+  fwrite(p->data, 1, p->size, f);
+}
+
 //////////////////////////////////////
 // Public functions
 dboolean MKV_Init(FILE *f, int width, int height, int fps) {
@@ -304,6 +327,6 @@ void MKV_End(void) {
 }
 
 void MKV_WriteVideoFrame(AVPacket *p) {
-  fwrite(p->data, 1, p->size, mux_file);
+  WriteCluster(mux_file, p);
   av_packet_unref(p);
 }
