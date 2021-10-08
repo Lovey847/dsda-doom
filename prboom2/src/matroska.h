@@ -32,7 +32,7 @@
 
 // Write matroska header to file, and initialize muxer
 // with video properties
-dboolean MKV_Init(FILE *f, int width, int height, int fps);
+dboolean MKV_Init(FILE *f, int width, int height, int fps, const char *codec);
 
 // Write matroska trailer to file,
 // and deinitialize muxer

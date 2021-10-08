@@ -249,7 +249,7 @@ static void WriteInfo(FILE *f, int fps) {
 }
 
 // Write matroska tracks element
-static void WriteTracks(FILE *f, int width, int height, int fps) {
+static void WriteTracks(FILE *f, int width, int height, int fps, const char *codec) {
   int len, entryLen, videoLen;
 
   fps = 1000000000/fps;
@@ -272,6 +272,7 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
     ElementSize(0x23314f, 8) + // TrackTimestampScale
     ElementSize(0x55ee, 1) + // MaxBlockAdditionID
     ElementSize(0x86, V_CODEC_ID_SIZE) + // CodecID
+    ElementSize(0x258688, strlen(codec)) + // CodecName
     ElementSize(0xaa, 1) + // CodecDecodeAll
     ElementSize(0xe0, videoLen); // Video
 
@@ -317,6 +318,9 @@ static void WriteTracks(FILE *f, int width, int height, int fps) {
 
   WriteElement(f, 0x86, V_CODEC_ID_SIZE); // CodecID
   WriteString(f, V_CODEC_ID);
+
+  WriteElement(f, 0x258688, strlen(codec)); // CodecName
+  fwrite(codec, 1, strlen(codec), f);
 
   WriteElement(f, 0xaa, 1); // CodecDecodeAll
   WriteNum(f, 1, 1);
@@ -436,11 +440,11 @@ static void WriteCues(FILE *f) {
 
 //////////////////////////////////////
 // Public functions
-dboolean MKV_Init(FILE *f, int width, int height, int fps) {
+dboolean MKV_Init(FILE *f, int width, int height, int fps, const char *codec) {
   WriteEBMLSchema(f);
   WriteElement(f, 0x18538067, 0); // Matroska segment
   WriteInfo(f, fps);
-  WriteTracks(f, width, height, fps);
+  WriteTracks(f, width, height, fps, codec);
 
   // Allocate cues
   maxcues = BASE_CUES;
