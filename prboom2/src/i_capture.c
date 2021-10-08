@@ -278,6 +278,7 @@ static dboolean I_OpenVideoContext(void) {
   av_dict_set(&opts, "profile", "baseline", 0);
   av_dict_set(&opts, "preset", "ultrafast", 0);
   av_dict_set(&opts, "tune", "zerolatency", 0);
+  av_dict_set(&opts, "thread_type", "frame", 0);
 
   // Bitrate override
   if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1)) {
