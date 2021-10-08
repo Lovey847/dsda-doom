@@ -249,8 +249,13 @@ static void WriteInfo(FILE *f, int fps) {
 }
 
 // Write matroska tracks element
-static void WriteTracks(FILE *f, int width, int height, int fps, const char *codec) {
+static void WriteTracks(FILE *f, AVCodecContext *ctx) {
   int len, entryLen, videoLen;
+
+  int width = ctx->width;
+  int height = ctx->height;
+  int fps = ctx->framerate.num; // Assume framerate.den == 1
+  const char *codec = ctx->codec->long_name;
 
   fps = 1000000000/fps;
 
@@ -440,11 +445,13 @@ static void WriteCues(FILE *f) {
 
 //////////////////////////////////////
 // Public functions
-dboolean MKV_Init(FILE *f, int width, int height, int fps, const char *codec) {
+dboolean MKV_Init(FILE *f, AVCodecContext *ctx) {
+  int fps = ctx->framerate.num; // Assume framerate.den == 1
+
   WriteEBMLSchema(f);
   WriteElement(f, 0x18538067, 0); // Matroska segment
   WriteInfo(f, fps);
-  WriteTracks(f, width, height, fps, codec);
+  WriteTracks(f, ctx);
 
   // Allocate cues
   maxcues = BASE_CUES;

@@ -372,7 +372,7 @@ void I_CapturePrep(const char *fn) {
   }
 
   // Initialize MKV muxer
-  if (!MKV_Init(vid_file, SCREENWIDTH, SCREENHEIGHT, cap_fps, vid_ctx->codec->long_name)) {
+  if (!MKV_Init(vid_file, vid_ctx)) {
     lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize mkv muxer!\n");
     capturing_video = 0;
 
