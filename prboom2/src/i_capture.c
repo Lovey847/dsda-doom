@@ -265,8 +265,8 @@ static dboolean I_OpenVideoContext(void) {
   vid_ctx->bit_rate = 16*1024*1024; // 16Mbits/s
   vid_ctx->width = SCREENWIDTH;
   vid_ctx->height = SCREENHEIGHT;
-  vid_ctx->time_base = (AVRational){1, cap_fps};
-  vid_ctx->framerate = (AVRational){cap_fps, 1};
+  vid_ctx->time_base.num = 1; vid_ctx->time_base.den = cap_fps;
+  vid_ctx->framerate.num = cap_fps; vid_ctx->framerate.den = 1;
   vid_ctx->gop_size = cap_fps/2;
   vid_ctx->max_b_frames = 1;
   vid_ctx->pix_fmt = AV_PIX_FMT_NV12;
