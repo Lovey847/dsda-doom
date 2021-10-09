@@ -45,8 +45,9 @@
 #ifdef HAVE_FFMPEG
 
 #include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
-#include "matroska.h"
+#include "mux.h"
 
 #endif //HAVE_FFMPEG
 
@@ -147,12 +148,11 @@ static int parsecommand (char *out, const char *in, int len)
 
 static FILE *vid_file = NULL;
 
+static mux_stream_t vid_stream;
 static const AVCodec *vid_codec = NULL;
 static AVCodecContext *vid_ctx = NULL;
 static AVFrame *vid_frame = NULL;
 static AVPacket *vid_packet = NULL;
-
-static const char *vid_codecname;
 
 static int vid_curframe;
 
@@ -166,7 +166,7 @@ static dboolean I_EncodeFrame(AVFrame *f) {
   // Send frame to encoder
   ret = avcodec_send_frame(vid_ctx, f);
   if (ret < 0) {
-    lprintf(LO_WARN, "I_EncodeFrame: Couldn't send frame to %s!\n", vid_codecname);
+    lprintf(LO_WARN, "I_EncodeFrame: Couldn't send frame to %s!\n", vid_codec->name);
     return false;
   }
 
@@ -184,7 +184,7 @@ static dboolean I_EncodeFrame(AVFrame *f) {
     }
 
     // Write packet to MKV
-    MKV_WriteVideoFrame(vid_packet); // unrefs packet
+    MUX_WritePacket(vid_stream, vid_packet); // unrefs packet
   }
 
   return true;
@@ -239,19 +239,19 @@ static void I_AllocYUVPlaypal(void) {
 }
 
 // Open video encoder context
-static dboolean I_OpenVideoContext(void) {
+static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   int arg, ret;
   AVDictionary *opts = NULL;
 
   // Find encoder
-  vid_codecname = "libx264";
-
-  vid_codec = avcodec_find_encoder_by_name(vid_codecname);
+  vid_codec = avcodec_find_encoder(prop->vc);
   if (!vid_codec) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't find encoder named %s!\n", vid_codecname);
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't find encoder named %s!\n", avcodec_get_name(prop->vc));
 
     return false;
   }
+
+  lprintf(LO_INFO, "I_OpenVideoContext: Encoding with %s\n", avcodec_get_name(prop->vc));
 
   // Allocate encoder context
   vid_ctx = avcodec_alloc_context3(vid_codec);
@@ -275,24 +275,33 @@ static dboolean I_OpenVideoContext(void) {
   vid_ctx->color_primaries = AVCOL_PRI_BT709;
   vid_ctx->color_range = AVCOL_RANGE_MPEG;
 
-  av_dict_set(&opts, "profile", "baseline", 0);
-  av_dict_set(&opts, "preset", "ultrafast", 0);
-  av_dict_set(&opts, "tune", "zerolatency", 0);
-  av_dict_set(&opts, "thread_type", "frame", 0);
-
-  // Bitrate override
-  if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1)) {
-    vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
+  // Common encoder private options
+  if (!strcmp(vid_codec->name, "libx264")) {
+    av_dict_set(&opts, "profile", "baseline", 0);
+    av_dict_set(&opts, "preset", "ultrafast", 0);
+    av_dict_set(&opts, "tune", "zerolatency", 0);
+    av_dict_set(&opts, "thread_type", "frame", 0);
   }
 
-  ret = avcodec_open2(vid_ctx, vid_codec, &opts);
+  // Bitrate override
+  if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1))
+    vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
+
+  // Add muxer-specific options
+  if (!MUX_AddOpt(vid_ctx)) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't write muxer-specific options!\n");
+
+    return false;
+  }
+
+  ret = avcodec_open2(vid_ctx, vid_codec, opts ? &opts : NULL);
   if (ret < 0) {
     lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize codec context!\n");
 
     return false;
   }
 
-  av_dict_free(&opts);
+  if (opts) av_dict_free(&opts);
 
   // Allocate video frame
   vid_frame = av_frame_alloc();
@@ -319,6 +328,7 @@ static dboolean I_OpenVideoContext(void) {
 void I_CapturePrep(const char *fn) {
   int arg;
   int ret;
+  mux_codecprop_t prop;
 
   vid_fname = fn;
 
@@ -363,8 +373,17 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
+  // Initialize muxer
+  if (!MUX_Init(vid_fname, &prop)) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize muxer!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
   // Initialize video encoder context
-  if (!I_OpenVideoContext()) {
+  if (!I_OpenVideoContext(&prop)) {
     lprintf(LO_WARN, "I_CapturePrep: Couldn't open video encoder context!\n");
     capturing_video = 0;
 
@@ -372,8 +391,18 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
-  // Initialize MKV muxer
-  if (!MKV_Init(vid_file, vid_ctx)) {
+  // Add video stream to muxer
+  vid_stream = MUX_AddStream(vid_ctx);
+  if (vid_stream < 0) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't add video stream!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Write file header
+  if (!MUX_WriteHeader()) {
     lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize mkv muxer!\n");
     capturing_video = 0;
 
@@ -398,7 +427,7 @@ void I_CaptureFinish(void) {
   // If we're recording, flush encoder output and deinit muxer
   if (capturing_video) {
     I_EncodeFrame(NULL);
-    MKV_End();
+    MUX_Close();
   }
 
   if (vid_ctx) avcodec_free_context(&vid_ctx);

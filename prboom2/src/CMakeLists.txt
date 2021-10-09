@@ -396,7 +396,7 @@ function(AddGameExecutable TARGET SOURCES)
     if (FFMPEG_FOUND)
         set(SOURCES
             ${SOURCES}
-            matroska.c
+            mux.c
         )
     endif ()
 
