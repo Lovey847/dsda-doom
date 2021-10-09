@@ -198,7 +198,7 @@ static void I_AllocYUVPlaypal(void) {
   int playpalsize = W_LumpLength(W_GetNumForName(playpaldata->lump_name));
   int i;
 
-  vid_playpal = Z_Malloc(3 * playpalsize, PU_STATIC, 0);
+  vid_playpal = Z_Malloc(3 * playpalsize, PU_STATIC, NULL);
 
   // Parse playpal into vid_playpal
   for (i = playpalsize*3; i > 0;) {
