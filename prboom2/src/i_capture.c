@@ -262,7 +262,7 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   }
 
   // Open encoder
-  vid_ctx->bit_rate = 16*1024*1024; // 16Mbits/s
+  vid_ctx->bit_rate = 8*1024*1024; // 8Mbits/s
   vid_ctx->width = SCREENWIDTH;
   vid_ctx->height = SCREENHEIGHT;
   vid_ctx->time_base.num = 1; vid_ctx->time_base.den = cap_fps;
