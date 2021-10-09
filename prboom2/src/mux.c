@@ -30,21 +30,6 @@ static AVRational mux_sbase[MAX_STREAMS]; // Stream time bases
 static AVStream *mux_s[MAX_STREAMS]; // File streams
 static mux_stream_t mux_scnt; // Stream count
 
-/////////////////////////////
-// Private functions
-
-// Free everything
-static void Free(void) {
-  if (mux_ctx) {
-    // Close file if necessary
-    if (mux_ctx->pb && !(mux_ctx->oformat->flags & AVFMT_NOFILE))
-      avio_closep(&mux_ctx->pb);
-
-    avformat_free_context(mux_ctx);
-    mux_ctx = NULL;
-  }
-}
-
 //////////////////////////////////////
 // Public functions
 dboolean MUX_Init(const char *filename, mux_codecprop_t *codecprop) {
@@ -68,13 +53,24 @@ dboolean MUX_Init(const char *filename, mux_codecprop_t *codecprop) {
     if (ret < 0) {
       lprintf(LO_WARN, "MUX_Init: Couldn't open output file!\n");
 
-      Free();
+      MUX_Shutdown();
       return false;
     }
   }
 
   // Everything is initialized
   return true;
+}
+
+void MUX_Shutdown(void) {
+  if (mux_ctx) {
+    // Close file if necessary
+    if (mux_ctx->pb && !(mux_ctx->oformat->flags & AVFMT_NOFILE))
+      avio_closep(&mux_ctx->pb);
+
+    avformat_free_context(mux_ctx);
+    mux_ctx = NULL;
+  }
 }
 
 dboolean MUX_AddOpt(AVCodecContext *ctx) {
@@ -91,7 +87,6 @@ mux_stream_t MUX_AddStream(AVCodecContext *ctx) {
   if (mux_scnt >= MAX_STREAMS) {
     lprintf(LO_WARN, "MUX_AddStream: Maximum number of streams reached!\n");
 
-    Free();
     return -1;
   }
 
@@ -103,7 +98,6 @@ mux_stream_t MUX_AddStream(AVCodecContext *ctx) {
   if (ret < 0) {
     lprintf(LO_WARN, "MUX_AddStream: Couldn't copy codec context parameters to stream %d!\n", mux_scnt);
 
-    Free();
     return -1;
   }
 
@@ -121,7 +115,6 @@ dboolean MUX_WriteHeader(void) {
   if (ret < 0) {
     lprintf(LO_WARN, "MUX_WriteHeader: Failed to write header!\n");
 
-    Free();
     return false;
   }
 
@@ -143,20 +136,21 @@ dboolean MUX_WritePacket(mux_stream_t stream, AVPacket *p) {
   if (ret < 0) {
     lprintf(LO_WARN, "MUX_WritePacket: Failed to write packet!\n");
 
-    Free();
     return false;
   }
 
   return true;
 }
 
-void MUX_Close(void) {
+dboolean MUX_WriteTrailer(void) {
   int ret;
 
   ret = av_write_trailer(mux_ctx);
-  if (ret < 0)
+  if (ret < 0) {
     lprintf(LO_WARN, "MUX_Close: Failed to write trailer to file!\n");
 
-  // Free all resources used by muxer
-  Free();
+    return false;
+  }
+
+  return true;
 }

@@ -424,11 +424,14 @@ void I_CaptureFinish(void) {
   // Free vid_playpal
   if (vid_playpal) Z_Free(vid_playpal);
 
-  // If we're recording, flush encoder output and deinit muxer
+  // If we're recording, flush encoder output and write trailer to file
   if (capturing_video) {
     I_EncodeFrame(NULL);
-    MUX_Close();
+    MUX_WriteTrailer();
   }
+
+  // Shutdown muxer
+  MUX_Shutdown();
 
   if (vid_ctx) avcodec_free_context(&vid_ctx);
   if (vid_frame) av_frame_free(&vid_frame);

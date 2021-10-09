@@ -43,6 +43,9 @@ typedef int mux_stream_t;
 // give properties to initialize codecs with
 dboolean MUX_Init(const char *filename, mux_codecprop_t *codecprop);
 
+// Shutdown muxer
+void MUX_Shutdown(void);
+
 // Add format specific settings to
 // codec context before codec initialization
 dboolean MUX_AddOpt(AVCodecContext *ctx);
@@ -58,7 +61,7 @@ dboolean MUX_WriteHeader(void);
 // Unrefs packet
 dboolean MUX_WritePacket(mux_stream_t stream, AVPacket *p);
 
-// Write trailer, close file, and uninit muxer
-void MUX_Close(void);
+// Write trailer to file
+dboolean MUX_WriteTrailer(void);
 
 #endif //__MUX_H__
