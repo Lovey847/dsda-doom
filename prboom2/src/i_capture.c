@@ -159,6 +159,11 @@ static int vid_curframe;
 // playpal in YCbCr (BT.709)
 static byte *vid_playpal = NULL;
 
+// Pixel format of video, either
+// AV_PIX_FMT_NV12 or AV_PIX_FMT_YUV420P
+// NV12 is preferred
+static enum AVPixelFormat vid_fmt = AV_PIX_FMT_NONE;
+
 // Encode vid_frame into vid_file with vid_codec
 static dboolean I_EncodeFrame(AVFrame *f) {
   int ret;
@@ -242,6 +247,7 @@ static void I_AllocYUVPlaypal(void) {
 static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   int arg, ret;
   AVDictionary *opts = NULL;
+  const enum AVPixelFormat *fmt;
 
   // Find encoder
   vid_codec = avcodec_find_encoder(prop->vc);
@@ -269,11 +275,26 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   vid_ctx->framerate.num = cap_fps; vid_ctx->framerate.den = 1;
   vid_ctx->gop_size = cap_fps/2;
   vid_ctx->max_b_frames = 1;
-  vid_ctx->pix_fmt = AV_PIX_FMT_NV12;
   vid_ctx->colorspace = AVCOL_SPC_BT709;
   vid_ctx->color_trc = AVCOL_TRC_BT709;
   vid_ctx->color_primaries = AVCOL_PRI_BT709;
   vid_ctx->color_range = AVCOL_RANGE_MPEG;
+
+  // Find pixel format for encoder
+  for (fmt = vid_codec->pix_fmts; *fmt != -1; ++fmt) {
+    if (*fmt == AV_PIX_FMT_NV12) {
+      vid_fmt = AV_PIX_FMT_NV12;
+      break;
+    } else if (*fmt == AV_PIX_FMT_YUV420P) vid_fmt = AV_PIX_FMT_YUV420P;
+  }
+
+  if (vid_fmt == AV_PIX_FMT_NONE) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Encoder doesn't support YUV420P!\n");
+
+    return false;
+  }
+
+  vid_ctx->pix_fmt = vid_fmt;
 
   // Common encoder private options
   if (!strcmp(vid_codec->name, "libx264")) {
@@ -311,7 +332,7 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
     return false;
   }
 
-  vid_frame->format = AV_PIX_FMT_NV12;
+  vid_frame->format = vid_fmt;
   vid_frame->width = SCREENWIDTH;
   vid_frame->height = SCREENHEIGHT;
 
@@ -445,7 +466,7 @@ void I_CaptureFinish(void) {
 }
 
 // Get the average chrominance of a 2x2 pixel region
-static void I_AverageChrominance(byte *out, byte *pixels) {
+static void I_AverageChrominance(byte *cbp, byte *crp, byte *pixels) {
   int cb, cr;
 
   cb = vid_playpal[pixels[0]*3+1];
@@ -460,8 +481,38 @@ static void I_AverageChrominance(byte *out, byte *pixels) {
   cb += vid_playpal[pixels[screens[0].pitch+1]*3+1];
   cr += vid_playpal[pixels[screens[0].pitch+1]*3+2];
 
-  out[0] = cb>>2;
-  out[1] = cr>>2;
+  *cbp = cb>>2;
+  *crp = cr>>2;
+}
+
+// Write NV12 chrominance plane
+static void I_WriteNV12Chroma(void) {
+  byte *ptr;
+  int y, x;
+
+  ptr = vid_frame->data[1];
+  for (y = 0; y < SCREENHEIGHT; y += 2) {
+    for (x = 0; x < SCREENWIDTH; x += 2) {
+      I_AverageChrominance(ptr, ptr+1, screens[0].data + y*screens[0].pitch + x);
+      ptr += 2;
+    }
+  }
+}
+
+// Write YUV420P chrominance planes
+static void I_WriteYUVChroma(void) {
+  byte *ptr, *crptr;
+  int y, x;
+
+  ptr = vid_frame->data[1];
+  crptr = vid_frame->data[2];
+  for (y = 0; y < SCREENHEIGHT; y += 2) {
+    for (x = 0; x < SCREENWIDTH; x += 2) {
+      I_AverageChrominance(ptr, crptr, screens[0].data + y*screens[0].pitch + x);
+      ++ptr;
+      ++crptr;
+    }
+  }
 }
 
 // Encode a single frame of video
@@ -488,13 +539,10 @@ static void I_EncodeVideoFrame(void) {
   }
 
   // Write chrominance
-  ptr = vid_frame->data[1];
-  for (y = 0; y < SCREENHEIGHT; y += 2) {
-    for (x = 0; x < SCREENWIDTH; x += 2) {
-      I_AverageChrominance(ptr, screens[0].data + y*screens[0].pitch + x);
-      ptr += 2;
-    }
-  }
+  if (vid_fmt == AV_PIX_FMT_NV12)
+    I_WriteNV12Chroma();
+  else // YUV420P
+    I_WriteYUVChroma();
 
   vid_frame->pts = vid_curframe++;
 
