@@ -674,7 +674,7 @@ static void I_EncodeVideoFrame(void) {
   // Make sure frame is writable
   ret = av_frame_make_writable(vid_frame);
   if (ret < 0) {
-    lprintf(LO_WARN, "I_CaptureFrame: Couldn't make video frame writable!\n");
+    lprintf(LO_WARN, "I_EncodeVideoFrame: Couldn't make video frame writable!\n");
     return;
   }
 
@@ -697,7 +697,7 @@ static void I_EncodeVideoFrame(void) {
   vid_frame->pts = vid_curframe++;
 
   if (!I_EncodeFrame(vid_ctx, vid_stream, vid_frame))
-    lprintf(LO_WARN, "I_CaptureFrame: Couldn't encode frame %d!\n", vid_curframe);
+    lprintf(LO_WARN, "I_EncodeVideoFrame: Couldn't encode frame %d!\n", vid_curframe);
 }
 
 // Split interleaved samples into 2 buffers
