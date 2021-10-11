@@ -739,7 +739,7 @@ static void I_EncodeAudioFrame(void) {
   static int carry = 0;
 
   int ret;
-  size_t numsamples, bufoffset;
+  size_t numsamples;
   const short *samplebuf;
 
   // Make sure frame is writable
