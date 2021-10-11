@@ -146,8 +146,6 @@ static int parsecommand (char *out, const char *in, int len)
 // FFmpeg library
 #ifdef HAVE_FFMPEG
 
-static FILE *vid_file = NULL;
-
 static AVPacket *vid_packet = NULL;
 
 static mux_stream_t vid_stream;
@@ -497,16 +495,6 @@ void I_CapturePrep(const char *fn) {
   // Allocate vid_playpal
   I_AllocYUVPlaypal();
 
-  // Open output file
-  vid_file = fopen(vid_fname, "wb");
-  if (!vid_file) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't open %s!\n", vid_fname);
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
-
   // Allocate packet, used when encoding
   vid_packet = av_packet_alloc();
   if (!vid_packet) {
@@ -607,10 +595,6 @@ void I_CaptureFinish(void) {
   if (snd_frame) av_frame_free(&snd_frame);
 
   if (vid_packet) av_packet_free(&vid_packet);
-  if (vid_file) {
-    fclose(vid_file);
-    vid_file = NULL;
-  }
 
   capturing_video = 0;
 }
