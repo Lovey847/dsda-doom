@@ -272,12 +272,12 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   // Find encoder
   vid_codec = avcodec_find_encoder(prop->vc);
   if (!vid_codec) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't find encoder named %s!\n", avcodec_get_name(prop->vc));
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't find encoder for %s!\n", avcodec_get_name(prop->vc));
 
     return false;
   }
 
-  lprintf(LO_INFO, "I_OpenVideoContext: Encoding with %s\n", avcodec_get_name(prop->vc));
+  lprintf(LO_INFO, "I_OpenVideoContext: Encoding with %s\n", vid_codec->name);
 
   // Allocate encoder context
   vid_ctx = avcodec_alloc_context3(vid_codec);
@@ -374,12 +374,12 @@ static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
   // Find encoder
   snd_codec = avcodec_find_encoder(prop->ac);
   if (!snd_codec) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't find encoder named %s!\n", avcodec_get_name(prop->ac));
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't find encoder for %s!\n", avcodec_get_name(prop->ac));
 
     return false;
   }
 
-  lprintf(LO_INFO, "I_OpenAudioContext: Encoding with %s\n", avcodec_get_name(prop->ac));
+  lprintf(LO_INFO, "I_OpenAudioContext: Encoding with %s\n", snd_codec->name);
 
   // Allocate encoder context
   snd_ctx = avcodec_alloc_context3(snd_codec);
