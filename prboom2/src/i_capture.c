@@ -148,28 +148,48 @@ static int parsecommand (char *out, const char *in, int len)
 
 static FILE *vid_file = NULL;
 
+static AVPacket *vid_packet = NULL;
+
 static mux_stream_t vid_stream;
 static const AVCodec *vid_codec = NULL;
 static AVCodecContext *vid_ctx = NULL;
 static AVFrame *vid_frame = NULL;
-static AVPacket *vid_packet = NULL;
-
-static int vid_curframe;
-
-// playpal in YCbCr (BT.709)
-static byte *vid_playpal = NULL;
 
 // Pixel format of video, either
 // AV_PIX_FMT_NV12 or AV_PIX_FMT_YUV420P
 // NV12 is preferred
 static enum AVPixelFormat vid_fmt = AV_PIX_FMT_NONE;
 
+static int vid_curframe;
+
+static mux_stream_t snd_stream;
+static const AVCodec *snd_codec = NULL;
+static AVCodecContext *snd_ctx = NULL;
+static AVFrame *snd_frame = NULL;
+
+// Audio sample format
+// We support S16 (fastest), S16P, and FLTP (slowest)
+static enum AVSampleFormat snd_fmt = AV_SAMPLE_FMT_NONE;
+
+// Sample write callback
+static void (*snd_write)(const short *samples, size_t ptr, size_t numsamples);
+
+static int snd_cursample;
+
+// playpal in YCbCr (BT.709)
+static byte *vid_playpal = NULL;
+
+// Sample writing prototypes
+static void I_WriteS16Samples(const short *samples, size_t ptr, size_t numsamples);
+static void I_WriteS16PSamples(const short *samples, size_t ptr, size_t numsamples);
+static void I_WriteFLTPSamples(const short *samples, size_t ptr, size_t numsamples);
+
 // Encode vid_frame into vid_file with vid_codec
-static dboolean I_EncodeFrame(AVFrame *f) {
+static dboolean I_EncodeFrame(AVCodecContext *ctx, mux_stream_t stream, AVFrame *f) {
   int ret;
 
   // Send frame to encoder
-  ret = avcodec_send_frame(vid_ctx, f);
+  ret = avcodec_send_frame(ctx, f);
   if (ret < 0) {
     lprintf(LO_WARN, "I_EncodeFrame: Couldn't send frame to %s!\n", vid_codec->name);
     return false;
@@ -177,7 +197,7 @@ static dboolean I_EncodeFrame(AVFrame *f) {
 
   // Flush the encoder's output
   for (;;) {
-    ret = avcodec_receive_packet(vid_ctx, vid_packet);
+    ret = avcodec_receive_packet(ctx, vid_packet);
 
     // If the encoder's been flushed, break out of loop
     if ((ret == AVERROR(EAGAIN)) || (ret == AVERROR_EOF)) break;
@@ -189,7 +209,7 @@ static dboolean I_EncodeFrame(AVFrame *f) {
     }
 
     // Write packet to MKV
-    MUX_WritePacket(vid_stream, vid_packet); // unrefs packet
+    MUX_WritePacket(stream, vid_packet); // unrefs packet
   }
 
   return true;
@@ -305,7 +325,7 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   }
 
   // Bitrate override
-  if ((arg = M_CheckParm("-bitrate")) && (arg < myargc-1))
+  if ((arg = M_CheckParm("-vb")) && (arg < myargc-1))
     vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
 
   // Add muxer-specific options
@@ -339,6 +359,110 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   ret = av_frame_get_buffer(vid_frame, 0);
   if (ret < 0) {
     lprintf(LO_WARN, "I_OpenVideoContext: Couldn't get video frame buffers!\n");
+
+    return false;
+  }
+
+  return true;
+}
+
+// Open audio encoder context
+static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
+  int arg, ret;
+  const enum AVSampleFormat *fmt;
+
+  // Find encoder
+  snd_codec = avcodec_find_encoder(prop->ac);
+  if (!snd_codec) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't find encoder named %s!\n", avcodec_get_name(prop->ac));
+
+    return false;
+  }
+
+  lprintf(LO_INFO, "I_OpenAudioContext: Encoding with %s\n", avcodec_get_name(prop->ac));
+
+  // Allocate encoder context
+  snd_ctx = avcodec_alloc_context3(snd_codec);
+  if (!snd_ctx) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't allocate encoder context!\n");
+
+    return false;
+  }
+
+  // Open encoder
+  snd_ctx->bit_rate = 128*1024; // 128Kbits/s
+  snd_ctx->channel_layout = AV_CH_LAYOUT_STEREO;
+  snd_ctx->sample_rate = snd_samplerate;
+  snd_ctx->time_base.num = 1; snd_ctx->time_base.den = snd_samplerate;
+  snd_ctx->channels = 2;
+
+  // Get sample format
+  for (fmt = snd_codec->sample_fmts; *fmt > 0; ++fmt) {
+    switch (*fmt) {
+    case AV_SAMPLE_FMT_S16:
+      snd_fmt = AV_SAMPLE_FMT_S16;
+      snd_write = I_WriteS16Samples;
+
+      break;
+    case AV_SAMPLE_FMT_S16P:
+      if (snd_fmt != AV_SAMPLE_FMT_S16) {
+        snd_fmt = AV_SAMPLE_FMT_S16P;
+        snd_write = I_WriteS16PSamples;
+      }
+
+      break;
+    case AV_SAMPLE_FMT_FLTP:
+      if (snd_fmt == AV_SAMPLE_FMT_NONE) {
+        snd_fmt = AV_SAMPLE_FMT_FLTP;
+        snd_write = I_WriteFLTPSamples;
+      }
+
+      break;
+    }
+  }
+
+  // Did we find a supported audio format?
+  if (snd_fmt == AV_SAMPLE_FMT_NONE) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Encoder doesn't support s16!\n");
+
+    return false;
+  }
+
+  snd_ctx->sample_fmt = snd_fmt;
+
+  // Bitrate override
+  if ((arg = M_CheckParm("-ab")) && (arg < myargc-1))
+    snd_ctx->bit_rate = atoi(myargv[arg+1])*1024;
+
+  if (!MUX_AddOpt(snd_ctx)) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't add muxer-specific options to codec!\n");
+
+    return false;
+  }
+
+  ret = avcodec_open2(snd_ctx, snd_codec, NULL);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't initialize codec context!\n");
+
+    return false;
+  }
+
+  // Allocate audio frame
+  snd_frame = av_frame_alloc();
+  if (!snd_frame) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't allocate audio frame!\n");
+
+    return false;
+  }
+
+  snd_frame->format = snd_fmt;
+  snd_frame->nb_samples = snd_ctx->frame_size;
+  snd_frame->channel_layout = AV_CH_LAYOUT_STEREO;
+  snd_frame->sample_rate = snd_samplerate;
+
+  ret = av_frame_get_buffer(snd_frame, 0);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't get buffers for audio frame!\n");
 
     return false;
   }
@@ -412,10 +536,29 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
+  // Initialize audio encoder context
+  if (!I_OpenAudioContext(&prop)) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't open audio encoder context!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
   // Add video stream to muxer
   vid_stream = MUX_AddStream(vid_ctx);
   if (vid_stream < 0) {
     lprintf(LO_WARN, "I_CapturePrep: Couldn't add video stream!\n");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
+  // Add audio stream to muxer
+  snd_stream = MUX_AddStream(snd_ctx);
+  if (snd_stream < 0) {
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't add audio stream!\n");
     capturing_video = 0;
 
     I_CaptureFinish();
@@ -447,7 +590,11 @@ void I_CaptureFinish(void) {
 
   // If we're recording, flush encoder output and write trailer to file
   if (capturing_video) {
-    I_EncodeFrame(NULL);
+    I_EncodeFrame(vid_ctx, vid_stream, NULL);
+
+    // TODO: The last audio frame may contain game audio!
+    I_EncodeFrame(snd_ctx, snd_stream, NULL);
+
     MUX_WriteTrailer();
   }
 
@@ -456,6 +603,10 @@ void I_CaptureFinish(void) {
 
   if (vid_ctx) avcodec_free_context(&vid_ctx);
   if (vid_frame) av_frame_free(&vid_frame);
+
+  if (snd_ctx) avcodec_free_context(&snd_ctx);
+  if (snd_frame) av_frame_free(&snd_frame);
+
   if (vid_packet) av_packet_free(&vid_packet);
   if (vid_file) {
     fclose(vid_file);
@@ -546,8 +697,110 @@ static void I_EncodeVideoFrame(void) {
 
   vid_frame->pts = vid_curframe++;
 
-  if (!I_EncodeFrame(vid_frame))
+  if (!I_EncodeFrame(vid_ctx, vid_stream, vid_frame))
     lprintf(LO_WARN, "I_CaptureFrame: Couldn't encode frame %d!\n", vid_curframe);
+}
+
+// Split interleaved samples into 2 buffers
+static void I_SplitSamples(const short *samples, size_t numsamples,
+                           short *left, short *right)
+{
+  const short *i, *end;
+
+  for (i = samples, end = i+numsamples*2;
+       i != end; i += 2)
+  {
+    *left++ = i[0];
+    *right++ = i[1];
+  }
+}
+
+// Convert interleaved s16 samples to planar flt samples
+static void I_CvtSamples(const short *samples, size_t numsamples,
+                         float *left, float *right)
+{
+  const short *i, *end;
+
+  for (i = samples, end = i+numsamples*2;
+       i != end; i += 2)
+  {
+    // Normalize range
+    *left++ = ((float)i[0]+0.5f)*(1.f/32767.5f);
+    *right++ = ((float)i[1]+0.5f)*(1.f/32767.5f);
+  }
+}
+
+// Write samples in s16 format
+static void I_WriteS16Samples(const short *samples, size_t ptr, size_t numsamples) {
+  // snd_frame->data[0] is a uint8_t*
+  memcpy(snd_frame->data[0] + ptr*4,
+         samples,
+         numsamples*4);
+}
+
+// Write samples in s16p format
+static void I_WriteS16PSamples(const short *samples, size_t ptr, size_t numsamples) {
+  I_SplitSamples(samples, numsamples, (short*)snd_frame->data[0] + ptr, (short*)snd_frame->data[1] + ptr);
+}
+
+// Write samples in fltp format
+static void I_WriteFLTPSamples(const short *samples, size_t ptr, size_t numsamples) {
+  I_CvtSamples(samples, numsamples, (float*)snd_frame->data[0] + ptr, (float*)snd_frame->data[1] + ptr);
+}
+
+// Encode a game tic of audio
+static void I_EncodeAudioFrame(void) {
+  static size_t bufptr = 0; // Pointer into sample buffer
+
+  // Track fraction of samples, add extra sample everytime this is >= cap_fps
+  static int carry = 0;
+
+  int ret;
+  size_t numsamples, bufoffset;
+  const short *samplebuf;
+
+  // Make sure frame is writable
+  ret = av_frame_make_writable(snd_frame);
+  if (ret < 0) {
+    lprintf(LO_WARN, "I_EncodeAudioFrame: Couldn't make audio frame writable!\n");
+    return;
+  }
+
+  // Get number of samples to read
+  numsamples = snd_samplerate/cap_fps;
+  carry += snd_samplerate%cap_fps;
+
+  if (carry >= cap_fps) {
+    carry -= cap_fps;
+    ++numsamples;
+  }
+
+  // Get audio samples
+  samplebuf = (const short*)I_GrabSound(numsamples);
+
+  // Is the sample buffer full?
+  while (bufptr + numsamples >= snd_frame->nb_samples) {
+    const size_t samples = snd_frame->nb_samples-bufptr;
+
+    numsamples -= samples;
+
+    snd_write(samplebuf, bufptr, samples);
+    bufptr = 0;
+    samplebuf += samples*2;
+
+    snd_frame->pts = snd_cursample;
+    snd_cursample += snd_frame->nb_samples;
+
+    if (!I_EncodeFrame(snd_ctx, snd_stream, snd_frame))
+      lprintf(LO_WARN, "I_EncodeAudioFrame: Error encoding frame!\n");
+
+    // If that was all the samples, return
+    if (!numsamples) return;
+  }
+
+  // Store samples in buffer, waiting for next encode
+  snd_write(samplebuf, bufptr, numsamples);
+  bufptr += numsamples;
 }
 
 // Encode a single frame of video
@@ -556,6 +809,9 @@ void I_CaptureFrame(void) {
 
   // Encode video frame
   I_EncodeVideoFrame();
+
+  // Encode audio frame
+  I_EncodeAudioFrame();
 }
 
 // FFmpeg process

@@ -34,6 +34,7 @@
 // Muxer codec properties
 typedef struct mux_codecprop_s {
   enum AVCodecID vc; // Desired video encoder
+  enum AVCodecID ac; // Desired audio encoder
 } mux_codecprop_t;
 
 // Muxer stream index

@@ -47,6 +47,11 @@ dboolean MUX_Init(const char *filename, mux_codecprop_t *codecprop) {
   else
     codecprop->vc = mux_ctx->oformat->video_codec;
 
+  if (mux_ctx->oformat->audio_codec == AV_CODEC_ID_NONE)
+    codecprop->ac = av_guess_codec(mux_ctx->oformat, NULL, filename, NULL, AVMEDIA_TYPE_AUDIO);
+  else
+    codecprop->ac = mux_ctx->oformat->audio_codec;
+
   // Open file if it's necessary
   if (!(mux_ctx->oformat->flags & AVFMT_NOFILE)) {
     ret = avio_open(&mux_ctx->pb, filename, AVIO_FLAG_WRITE);
