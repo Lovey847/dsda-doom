@@ -294,7 +294,6 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   vid_ctx->time_base.num = 1; vid_ctx->time_base.den = cap_fps;
   vid_ctx->framerate.num = cap_fps; vid_ctx->framerate.den = 1;
   vid_ctx->gop_size = cap_fps/2;
-  vid_ctx->max_b_frames = 1;
   vid_ctx->colorspace = AVCOL_SPC_BT709;
   vid_ctx->color_trc = AVCOL_TRC_BT709;
   vid_ctx->color_primaries = AVCOL_PRI_BT709;
