@@ -206,7 +206,7 @@ static dboolean I_EncodeFrame(AVCodecContext *ctx, mux_stream_t stream, AVFrame 
       return false;
     }
 
-    // Write packet to MKV
+    // Write packet to muxer
     MUX_WritePacket(stream, vid_packet); // unrefs packet
   }
 
@@ -554,7 +554,7 @@ void I_CapturePrep(const char *fn) {
 
   // Write file header
   if (!MUX_WriteHeader()) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize mkv muxer!\n");
+    lprintf(LO_WARN, "I_CapturePrep: Couldn't initialize muxer!\n");
     capturing_video = 0;
 
     I_CaptureFinish();
