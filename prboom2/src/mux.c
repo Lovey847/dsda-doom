@@ -36,7 +36,7 @@ static mux_stream_t mux_scnt; // Stream count
 // Find best video encoder for output format
 static enum AVCodecID GetBestVideoEncoder(AVOutputFormat *of, const char *filename) {
   // H264 is preferred, if available
-  if (avformat_query_codec(of, AV_CODEC_ID_H264, 0)) return AV_CODEC_ID_H264;
+  if (avformat_query_codec(of, AV_CODEC_ID_H264, 0) == 1) return AV_CODEC_ID_H264;
   else if (of->video_codec != AV_CODEC_ID_NONE) return of->video_codec;
   else return av_guess_codec(of, NULL, filename, NULL, AVMEDIA_TYPE_VIDEO);
 }
@@ -44,7 +44,7 @@ static enum AVCodecID GetBestVideoEncoder(AVOutputFormat *of, const char *filena
 // Find best audio encoder for output format
 static enum AVCodecID GetBestAudioEncoder(AVOutputFormat *of, const char *filename) {
   // Ogg is preferred, if available
-  if (avformat_query_codec(of, AV_CODEC_ID_VORBIS, 0)) return AV_CODEC_ID_VORBIS;
+  if (avformat_query_codec(of, AV_CODEC_ID_VORBIS, 0) == 1) return AV_CODEC_ID_VORBIS;
   else if (of->audio_codec != AV_CODEC_ID_NONE) return of->audio_codec;
   else return av_guess_codec(of, NULL, filename, NULL, AVMEDIA_TYPE_AUDIO);
 }
