@@ -267,6 +267,13 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   AVDictionary *opts = NULL;
   const enum AVPixelFormat *fmt;
 
+  // Error out if format doesn't support video streams
+  if (prop->vc == AV_CODEC_ID_NONE) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Format doesn't support video! (use -nodraw to only dump audio)\n");
+
+    return false;
+  }
+
   // Find encoder
   vid_codec = avcodec_find_encoder(prop->vc);
   if (!vid_codec) {
@@ -367,6 +374,13 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
 static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
   int arg, ret;
   const enum AVSampleFormat *fmt;
+
+  // Error out of format doesn't support audio streams
+  if (prop->ac == AV_CODEC_ID_NONE) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Format doesn't support audio! (use -nosound to only dump video)\n");
+
+    return false;
+  }
 
   // Find encoder
   snd_codec = avcodec_find_encoder(prop->ac);
