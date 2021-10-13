@@ -375,7 +375,7 @@ static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
   int arg, ret;
   const enum AVSampleFormat *fmt;
 
-  // Error out of format doesn't support audio streams
+  // Error out if format doesn't support audio streams
   if (prop->ac == AV_CODEC_ID_NONE) {
     lprintf(LO_WARN, "I_OpenAudioContext: Format doesn't support audio! (use -nosound to only dump video)\n");
 
