@@ -515,7 +515,7 @@ void I_CapturePrep(const char *fn) {
   }
 
   // Initialize video encoder context
-  if (!I_OpenVideoContext(&prop)) {
+  if (!M_CheckParm("-nodraw") && !I_OpenVideoContext(&prop)) {
     lprintf(LO_WARN, "I_CapturePrep: Couldn't open video encoder context!\n");
     capturing_video = 0;
 
@@ -524,7 +524,7 @@ void I_CapturePrep(const char *fn) {
   }
 
   // Initialize audio encoder context
-  if (!I_OpenAudioContext(&prop)) {
+  if (!M_CheckParm("-nosound") && !I_OpenAudioContext(&prop)) {
     lprintf(LO_WARN, "I_CapturePrep: Couldn't open audio encoder context!\n");
     capturing_video = 0;
 
@@ -534,23 +534,9 @@ void I_CapturePrep(const char *fn) {
 
   // Add video stream to muxer
   vid_stream = MUX_AddStream(vid_ctx);
-  if (vid_stream < 0) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't add video stream!\n");
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
 
   // Add audio stream to muxer
   snd_stream = MUX_AddStream(snd_ctx);
-  if (snd_stream < 0) {
-    lprintf(LO_WARN, "I_CapturePrep: Couldn't add audio stream!\n");
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
 
   // Write file header
   if (!MUX_WriteHeader()) {
@@ -577,10 +563,10 @@ void I_CaptureFinish(void) {
 
   // If we're recording, flush encoder output and write trailer to file
   if (capturing_video) {
-    I_EncodeFrame(vid_ctx, vid_stream, NULL);
+    if (vid_ctx) I_EncodeFrame(vid_ctx, vid_stream, NULL);
 
     // TODO: The last audio frame may contain game audio!
-    I_EncodeFrame(snd_ctx, snd_stream, NULL);
+    if (snd_ctx) I_EncodeFrame(snd_ctx, snd_stream, NULL);
 
     MUX_WriteTrailer();
   }
@@ -791,10 +777,10 @@ void I_CaptureFrame(void) {
   if (!capturing_video) return;
 
   // Encode video frame
-  I_EncodeVideoFrame();
+  if (vid_ctx) I_EncodeVideoFrame();
 
   // Encode audio frame
-  I_EncodeAudioFrame();
+  if (snd_ctx) I_EncodeAudioFrame();
 }
 
 // FFmpeg process

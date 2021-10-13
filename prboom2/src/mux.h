@@ -52,6 +52,7 @@ void MUX_Shutdown(void);
 dboolean MUX_AddOpt(AVCodecContext *ctx);
 
 // Add codec to muxer
+// Silently fails if ctx is NULL
 // Returns stream index, -1 on failure
 mux_stream_t MUX_AddStream(AVCodecContext *ctx);
 

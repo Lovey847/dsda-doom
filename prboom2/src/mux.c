@@ -101,6 +101,9 @@ dboolean MUX_AddOpt(AVCodecContext *ctx) {
 mux_stream_t MUX_AddStream(AVCodecContext *ctx) {
   int ret;
 
+  // Silently fail if ctx is NULL
+  if (!ctx) return -1;
+
   if (mux_scnt >= MAX_STREAMS) {
     lprintf(LO_WARN, "MUX_AddStream: Maximum number of streams reached!\n");
 
