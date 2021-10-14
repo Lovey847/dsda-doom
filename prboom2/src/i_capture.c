@@ -293,7 +293,6 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   }
 
   // Open encoder
-  vid_ctx->bit_rate = 8*1024*1024; // 8Mbits/s
   vid_ctx->width = SCREENWIDTH;
   vid_ctx->height = SCREENHEIGHT;
   vid_ctx->time_base.num = 1; vid_ctx->time_base.den = cap_fps;
@@ -328,7 +327,7 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
     av_dict_set(&opts, "thread_type", "frame", 0);
   }
 
-  // Bitrate override
+  // Set video bitrate
   if ((arg = M_CheckParm("-vb")) && (arg < myargc-1))
     vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
 
@@ -401,7 +400,6 @@ static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
   }
 
   // Open encoder
-  snd_ctx->bit_rate = 128*1024; // 128Kbits/s
   snd_ctx->channel_layout = AV_CH_LAYOUT_STEREO;
   snd_ctx->sample_rate = snd_samplerate;
   snd_ctx->time_base.num = 1; snd_ctx->time_base.den = snd_samplerate;
@@ -441,7 +439,7 @@ static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
 
   snd_ctx->sample_fmt = snd_fmt;
 
-  // Bitrate override
+  // Set audio bitrate
   if ((arg = M_CheckParm("-ab")) && (arg < myargc-1))
     snd_ctx->bit_rate = atoi(myargv[arg+1])*1024;
 
