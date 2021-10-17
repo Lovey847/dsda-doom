@@ -393,7 +393,7 @@ static dboolean I_TryVideoCodec(enum AVCodecID c, const char *name) {
 static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   // List of preferrable video encoders
   static const enum AVCodecID preferred[] = {
-    AV_CODEC_ID_H264
+    AV_CODEC_ID_H264, AV_CODEC_ID_MPEG4
   };
 
   int arg, ret;
