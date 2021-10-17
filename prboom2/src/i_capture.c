@@ -263,7 +263,7 @@ static void I_AllocYUVPlaypal(void) {
 
 // Open a preferrable codec, if available
 // If none are available, try to open the default codec
-static dboolean I_OpenCodec(dboolean (*trycodec)(enum AVCodecID), const AVOutputFormat *ofmt,
+static dboolean I_OpenCodec(dboolean (*trycodec)(enum AVCodecID, const char*), const AVOutputFormat *ofmt,
                             const enum AVCodecID *pref, size_t preflen, enum AVCodecID def)
 {
   const enum AVCodecID *i;
@@ -273,11 +273,11 @@ static dboolean I_OpenCodec(dboolean (*trycodec)(enum AVCodecID), const AVOutput
     if (avformat_query_codec(ofmt, *i, 0) != 1) continue;
 
     // Can we initialize this codec?
-    if (trycodec(*i)) return true;
+    if (trycodec(*i, NULL)) return true;
   }
 
   // If no preferred codec could be initialized, try default codec
-  if (trycodec(def)) return true;
+  if (trycodec(def, NULL)) return true;
 
   // If we still didn't initialize, error out
   lprintf(LO_WARN, "I_OpenCodec: Couldn't initialize any codec!\n");
@@ -295,18 +295,28 @@ static void I_CloseVideo(void) {
 }
 
 // Attempt to open specific video encoder
-static dboolean I_TryVideoCodec(enum AVCodecID c) {
+static dboolean I_TryVideoCodec(enum AVCodecID c, const char *name) {
   int arg, ret;
   AVDictionary *opts = NULL;
   const enum AVPixelFormat *fmt;
 
   // Find encoder
-  vid_codec = avcodec_find_encoder(c);
-  if (!vid_codec) {
-    lprintf(LO_WARN, "I_TryVideoCodec: Cannot find encoder for %s!\n", avcodec_get_name(c));
+  if (name) {
+    vid_codec = avcodec_find_encoder_by_name(name);
+    if (!vid_codec) {
+      lprintf(LO_WARN, "I_TryVideoCodec: Couldn't find %s!\n", name);
 
-    I_CloseVideo();
-    return false;
+      I_CloseVideo();
+      return false;
+    }
+  } else {
+    vid_codec = avcodec_find_encoder(c);
+    if (!vid_codec) {
+      lprintf(LO_WARN, "I_TryVideoCodec: Couldn't find encoder for %s!\n", avcodec_get_name(c));
+
+      I_CloseVideo();
+      return false;
+    }
   }
 
   // Find pixel format for encoder
@@ -386,16 +396,25 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
     AV_CODEC_ID_H264
   };
 
-  int ret;
+  int arg, ret;
 
-  // Open any available video codec
-  if (!I_OpenCodec(I_TryVideoCodec, prop->ofmt,
-                   preferred, sizeof(preferred)/sizeof(*preferred),
-                   prop->vc))
-  {
-    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize any encoder! (use -nodraw to only dump audio)\n");
+  if ((arg = M_CheckParm("-vc")) && (arg < myargc-1)) {
+    // If the user specified a specific video codec, use that
+    if (!I_TryVideoCodec(AV_CODEC_ID_NONE, myargv[arg+1])) {
+      lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize %s!\n", myargv[arg+1]);
 
-    return false;
+      return false;
+    }
+  } else {
+    // Otherwise, open any available video codec
+    if (!I_OpenCodec(I_TryVideoCodec, prop->ofmt,
+                     preferred, sizeof(preferred)/sizeof(*preferred),
+                     prop->vc))
+    {
+      lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize any encoder! (use -nodraw to only dump audio)\n");
+
+      return false;
+    }
   }
 
   // Allocate video frame
@@ -430,18 +449,28 @@ static void I_CloseAudio(void) {
 }
 
 // Attempt to open specific audio encoder
-static dboolean I_TryAudioCodec(enum AVCodecID c) {
+static dboolean I_TryAudioCodec(enum AVCodecID c, const char *name) {
   int arg, ret;
   AVDictionary *opts = NULL;
   const enum AVSampleFormat *fmt;
 
   // Find encoder
-  snd_codec = avcodec_find_encoder(c);
-  if (!snd_codec) {
-    lprintf(LO_WARN, "I_TryAudioCodec: Couldn't find encoder for %s!\n", avcodec_get_name(c));
+  if (name) {
+    snd_codec = avcodec_find_encoder_by_name(name);
+    if (!snd_codec) {
+      lprintf(LO_WARN, "I_TryAudioCodec: Couldn't find %s!\n", name);
 
-    I_CloseAudio();
-    return false;
+      I_CloseAudio();
+      return false;
+    }
+  } else {
+    snd_codec = avcodec_find_encoder(c);
+    if (!snd_codec) {
+      lprintf(LO_WARN, "I_TryAudioCodec: Couldn't find encoder for %s!\n", avcodec_get_name(c));
+
+      I_CloseAudio();
+      return false;
+    }
   }
 
   // Get sample format
@@ -524,16 +553,25 @@ static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
     AV_CODEC_ID_OPUS, AV_CODEC_ID_MP3
   };
 
-  int ret;
+  int arg, ret;
 
-  // Open any available audio codec
-  if (!I_OpenCodec(I_TryAudioCodec, prop->ofmt,
-                   preferred, sizeof(preferred)/sizeof(*preferred),
-                   prop->ac))
-  {
-    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't initialize any encoder! (use -nosound to only dump video)\n");
+  if ((arg = M_CheckParm("-ac")) && (arg < myargc-1)) {
+    // If the user specified a specific audio codec, use that
+    if (!I_TryAudioCodec(AV_CODEC_ID_NONE, myargv[arg+1])) {
+      lprintf(LO_WARN, "I_OpenAudioContext: Couldn't initialize %s!\n", myargv[arg+1]);
 
-    return false;
+      return false;
+    }
+  } else {
+    // Otherwise, open any available audio codec
+    if (!I_OpenCodec(I_TryAudioCodec, prop->ofmt,
+                     preferred, sizeof(preferred)/sizeof(*preferred),
+                     prop->ac))
+    {
+      lprintf(LO_WARN, "I_OpenAudioContext: Couldn't initialize any encoder! (use -nosound to only dump video)\n");
+
+      return false;
+    }
   }
 
   // Allocate audio frame
