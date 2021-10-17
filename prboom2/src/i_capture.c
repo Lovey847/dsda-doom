@@ -261,6 +261,30 @@ static void I_AllocYUVPlaypal(void) {
   }
 }
 
+// Open a preferrable codec, if available
+// If none are available, try to open the default codec
+static dboolean I_OpenCodec(dboolean (*trycodec)(enum AVCodecID), const AVOutputFormat *ofmt,
+                            const enum AVCodecID *pref, size_t preflen, enum AVCodecID def)
+{
+  const enum AVCodecID *i;
+
+  for (i = pref; i < pref+preflen; ++i) {
+    // Is this codec not supported by the format?
+    if (avformat_query_codec(ofmt, *i, 0) != 1) continue;
+
+    // Can we initialize this codec?
+    if (trycodec(*i)) return true;
+  }
+
+  // If no preferred codec could be initialized, try default codec
+  if (trycodec(def)) return true;
+
+  // If we still didn't initialize, error out
+  lprintf(LO_WARN, "I_OpenCodec: Couldn't initialize any codec!\n");
+
+  return false;
+}
+
 // Shutdown video encoder context
 static void I_CloseVideo(void) {
   if (vid_ctx) avcodec_free_context(&vid_ctx);
@@ -355,43 +379,21 @@ static dboolean I_TryVideoCodec(enum AVCodecID c) {
   return true;
 }
 
-// Open any available video encoder
-static dboolean I_OpenVideoCodec(const mux_codecprop_t *prop) {
+// Open video encoder context
+static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   // List of preferrable video encoders
   static const enum AVCodecID preferred[] = {
     AV_CODEC_ID_H264
   };
 
-  const enum AVCodecID *i;
-
-  // Initialize with preferred codec
-  for (i = preferred;
-       i < preferred + sizeof(preferred)/sizeof(*preferred);
-       ++i)
-  {
-    // Is this codec not supported by the format?
-    if (avformat_query_codec(prop->ofmt, *i, 0) != 1) continue;
-
-    // Can we initialize this codec?
-    if (I_TryVideoCodec(*i)) return true;
-  }
-
-  // If no preferred codec could be initialized, try default codec
-  if (I_TryVideoCodec(prop->vc)) return true;
-
-  // If we still didn't initialize, error out
-  lprintf(LO_WARN, "I_OpenVideoCodec: Couldn't initialize any video encoder! (use -nodraw to only dump audio)\n");
-
-  return false;
-}
-
-// Open video encoder context
-static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   int ret;
 
   // Open any available video codec
-  if (!I_OpenVideoCodec(prop)) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Failed to initialize any video encoder!\n");
+  if (!I_OpenCodec(I_TryVideoCodec, prop->ofmt,
+                   preferred, sizeof(preferred)/sizeof(*preferred),
+                   prop->vc))
+  {
+    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize any encoder! (use -nodraw to only dump audio)\n");
 
     return false;
   }
@@ -515,43 +517,21 @@ static dboolean I_TryAudioCodec(enum AVCodecID c) {
   return true;
 }
 
-// Open any available audio encoder
-static dboolean I_OpenAudioCodec(const mux_codecprop_t *prop) {
+// Open audio encoder context
+static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
   // List of preferrable audio encoders
   static const enum AVCodecID preferred[] = {
     AV_CODEC_ID_OPUS, AV_CODEC_ID_MP3
   };
 
-  const enum AVCodecID *i;
-
-  // Initialize with preferred codec
-  for (i = preferred;
-       i < preferred + sizeof(preferred)/sizeof(*preferred);
-       ++i)
-  {
-    // Is this codec not supported by the format?
-    if (avformat_query_codec(prop->ofmt, *i, 0) != 1) continue;
-
-    // Can we initialize this codec?
-    if (I_TryAudioCodec(*i)) return true;
-  }
-
-  // If no preferred codec could be initialized, try default codec
-  if (I_TryAudioCodec(prop->ac)) return true;
-
-  // If we still didn't initialize, error out
-  lprintf(LO_WARN, "I_OpenAudioCodec: Couldn't initialize any audio encoder! (use -nosound to only dump video)\n");
-
-  return false;
-}
-
-// Open audio encoder context
-static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
   int ret;
 
   // Open any available audio codec
-  if (!I_OpenAudioCodec(prop)) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Failed to initialize any audio encoder!\n");
+  if (!I_OpenCodec(I_TryAudioCodec, prop->ofmt,
+                   preferred, sizeof(preferred)/sizeof(*preferred),
+                   prop->ac))
+  {
+    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't initialize any encoder! (use -nosound to only dump video)\n");
 
     return false;
   }
