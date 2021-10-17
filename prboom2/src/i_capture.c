@@ -364,7 +364,7 @@ static dboolean I_TryVideoCodec(enum AVCodecID c, const char *name) {
   }
 
   // Set video bitrate
-  if ((arg = M_CheckParm("-vb")) && (arg < myargc-1))
+  if ((arg = M_CheckParm("-videobitrate")) && (arg < myargc-1))
     vid_ctx->bit_rate = atoi(myargv[arg+1])*1024*1024;
 
   // Add muxer-specific options
@@ -398,7 +398,7 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
 
   int arg, ret;
 
-  if ((arg = M_CheckParm("-vc")) && (arg < myargc-1)) {
+  if ((arg = M_CheckParm("-videocodec")) && (arg < myargc-1)) {
     // If the user specified a specific video codec, use that
     if (!I_TryVideoCodec(AV_CODEC_ID_NONE, myargv[arg+1])) {
       lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize %s!\n", myargv[arg+1]);
@@ -523,7 +523,7 @@ static dboolean I_TryAudioCodec(enum AVCodecID c, const char *name) {
   snd_ctx->sample_fmt = snd_fmt;
 
   // Set audio bitrate
-  if ((arg = M_CheckParm("-ab")) && (arg < myargc-1))
+  if ((arg = M_CheckParm("-audiobitrate")) && (arg < myargc-1))
     snd_ctx->bit_rate = atoi(myargv[arg+1])*1024;
 
   // Add muxer-specific options
@@ -555,7 +555,7 @@ static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
 
   int arg, ret;
 
-  if ((arg = M_CheckParm("-ac")) && (arg < myargc-1)) {
+  if ((arg = M_CheckParm("-audiocodec")) && (arg < myargc-1)) {
     // If the user specified a specific audio codec, use that
     if (!I_TryAudioCodec(AV_CODEC_ID_NONE, myargv[arg+1])) {
       lprintf(LO_WARN, "I_OpenAudioContext: Couldn't initialize %s!\n", myargv[arg+1]);
