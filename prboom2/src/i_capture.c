@@ -363,7 +363,6 @@ static dboolean I_OpenVideoCodec(const mux_codecprop_t *prop) {
   };
 
   const enum AVCodecID *i;
-  unsigned int tag;
 
   // Initialize with preferred codec
   for (i = preferred;
@@ -524,7 +523,6 @@ static dboolean I_OpenAudioCodec(const mux_codecprop_t *prop) {
   };
 
   const enum AVCodecID *i;
-  unsigned int tag;
 
   // Initialize with preferred codec
   for (i = preferred;
