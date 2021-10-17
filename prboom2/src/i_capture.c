@@ -613,15 +613,6 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
-  // We can only record with even width & height
-  if ((SCREENWIDTH&1) || (SCREENHEIGHT&1)) {
-    lprintf(LO_WARN, "I_CapturePrep: Can only record with even width&height!\n");
-    capturing_video = 0;
-
-    I_CaptureFinish();
-    return;
-  }
-
   // Allocate vid_playpal
   I_AllocYUVPlaypal();
 
