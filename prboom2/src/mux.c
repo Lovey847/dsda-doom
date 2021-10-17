@@ -30,25 +30,6 @@ static AVRational mux_sbase[MAX_STREAMS]; // Stream time bases
 static AVStream *mux_s[MAX_STREAMS]; // File streams
 static mux_stream_t mux_scnt; // Stream count
 
-//////////////////////////
-// Private functions
-
-// Find best video encoder for output format
-static enum AVCodecID GetBestVideoEncoder(AVOutputFormat *of, const char *filename) {
-  // H264 is preferred, if available
-  if (avformat_query_codec(of, AV_CODEC_ID_H264, 0) == 1) return AV_CODEC_ID_H264;
-  else if (of->video_codec != AV_CODEC_ID_NONE) return of->video_codec;
-  else return av_guess_codec(of, NULL, filename, NULL, AVMEDIA_TYPE_VIDEO);
-}
-
-// Find best audio encoder for output format
-static enum AVCodecID GetBestAudioEncoder(AVOutputFormat *of, const char *filename) {
-  // Ogg is preferred, if available
-  if (avformat_query_codec(of, AV_CODEC_ID_VORBIS, 0) == 1) return AV_CODEC_ID_VORBIS;
-  else if (of->audio_codec != AV_CODEC_ID_NONE) return of->audio_codec;
-  else return av_guess_codec(of, NULL, filename, NULL, AVMEDIA_TYPE_AUDIO);
-}
-
 //////////////////////////////////////
 // Public functions
 dboolean MUX_Init(const char *filename, mux_codecprop_t *codecprop) {
@@ -60,9 +41,10 @@ dboolean MUX_Init(const char *filename, mux_codecprop_t *codecprop) {
     return false;
   }
 
-  // Put codecs in codecprop
-  codecprop->vc = GetBestVideoEncoder(mux_ctx->oformat, filename);
-  codecprop->ac = GetBestAudioEncoder(mux_ctx->oformat, filename);
+  // Set codecprop
+  codecprop->ofmt = mux_ctx->oformat;
+  codecprop->vc = mux_ctx->oformat->video_codec;
+  codecprop->ac = mux_ctx->oformat->audio_codec;
 
   // Open file if it's necessary
   if (!(mux_ctx->oformat->flags & AVFMT_NOFILE)) {

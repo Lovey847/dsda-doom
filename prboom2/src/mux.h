@@ -33,6 +33,9 @@
 
 // Muxer codec properties
 typedef struct mux_codecprop_s {
+  // Output format
+  const AVOutputFormat *ofmt;
+
   enum AVCodecID vc; // Desired video encoder
   enum AVCodecID ac; // Desired audio encoder
 } mux_codecprop_t;

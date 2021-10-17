@@ -261,34 +261,51 @@ static void I_AllocYUVPlaypal(void) {
   }
 }
 
-// Open video encoder context
-static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
+// Shutdown video encoder context
+static void I_CloseVideo(void) {
+  if (vid_ctx) avcodec_free_context(&vid_ctx);
+  if (vid_frame) av_frame_free(&vid_frame);
+
+  vid_codec = NULL;
+  vid_fmt = AV_PIX_FMT_NONE;
+}
+
+// Attempt to open specific video encoder
+static dboolean I_TryVideoCodec(enum AVCodecID c) {
   int arg, ret;
   AVDictionary *opts = NULL;
   const enum AVPixelFormat *fmt;
 
-  // Error out if format doesn't support video streams
-  if (prop->vc == AV_CODEC_ID_NONE) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Format doesn't support video! (use -nodraw to only dump audio)\n");
-
-    return false;
-  }
-
   // Find encoder
-  vid_codec = avcodec_find_encoder(prop->vc);
+  vid_codec = avcodec_find_encoder(c);
   if (!vid_codec) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't find encoder for %s!\n", avcodec_get_name(prop->vc));
+    lprintf(LO_WARN, "I_TryVideoCodec: Cannot find encoder for %s!\n", avcodec_get_name(c));
 
+    I_CloseVideo();
     return false;
   }
 
-  lprintf(LO_INFO, "I_OpenVideoContext: Encoding with %s\n", vid_codec->name);
+  // Find pixel format for encoder
+  for (fmt = vid_codec->pix_fmts; *fmt != -1; ++fmt) {
+    if (*fmt == AV_PIX_FMT_NV12) {
+      vid_fmt = AV_PIX_FMT_NV12;
+      break;
+    } else if (*fmt == AV_PIX_FMT_YUV420P) vid_fmt = AV_PIX_FMT_YUV420P;
+  }
+
+  if (vid_fmt == AV_PIX_FMT_NONE) {
+    lprintf(LO_WARN, "I_TryVideoCodec: Encoder doesn't support YUV420P!\n");
+
+    I_CloseVideo();
+    return false;
+  }
 
   // Allocate encoder context
   vid_ctx = avcodec_alloc_context3(vid_codec);
   if (!vid_ctx) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't allocate encoder context!\n");
+    lprintf(LO_WARN, "I_TryVideoCodec: Couldn't allocate encoder context!\n");
 
+    I_CloseVideo();
     return false;
   }
 
@@ -302,21 +319,6 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   vid_ctx->color_trc = AVCOL_TRC_BT709;
   vid_ctx->color_primaries = AVCOL_PRI_BT709;
   vid_ctx->color_range = AVCOL_RANGE_MPEG;
-
-  // Find pixel format for encoder
-  for (fmt = vid_codec->pix_fmts; *fmt != -1; ++fmt) {
-    if (*fmt == AV_PIX_FMT_NV12) {
-      vid_fmt = AV_PIX_FMT_NV12;
-      break;
-    } else if (*fmt == AV_PIX_FMT_YUV420P) vid_fmt = AV_PIX_FMT_YUV420P;
-  }
-
-  if (vid_fmt == AV_PIX_FMT_NONE) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Encoder doesn't support YUV420P!\n");
-
-    return false;
-  }
-
   vid_ctx->pix_fmt = vid_fmt;
 
   // Common encoder private options
@@ -333,19 +335,67 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
 
   // Add muxer-specific options
   if (!MUX_AddOpt(vid_ctx)) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't write muxer-specific options!\n");
+    lprintf(LO_WARN, "I_TryVideoCodec: Couldn't write muxer-specific options!\n");
 
+    I_CloseVideo();
     return false;
   }
 
+  // Open codec
   ret = avcodec_open2(vid_ctx, vid_codec, opts ? &opts : NULL);
   if (ret < 0) {
-    lprintf(LO_WARN, "I_OpenVideoContext: Couldn't initialize codec context!\n");
+    lprintf(LO_WARN, "I_TryVideoCodec: Couldn't initialize codec context!\n");
 
+    I_CloseVideo();
     return false;
   }
 
   if (opts) av_dict_free(&opts);
+
+  return true;
+}
+
+// Open any available video encoder
+static dboolean I_OpenVideoCodec(const mux_codecprop_t *prop) {
+  // List of preferrable video encoders
+  static const enum AVCodecID preferred[] = {
+    AV_CODEC_ID_H264
+  };
+
+  const enum AVCodecID *i;
+  unsigned int tag;
+
+  // Initialize with preferred codec
+  for (i = preferred;
+       i < preferred + sizeof(preferred)/sizeof(*preferred);
+       ++i)
+  {
+    // Is this codec not supported by the format?
+    if (avformat_query_codec(prop->ofmt, *i, 0) != 1) continue;
+
+    // Can we initialize this codec?
+    if (I_TryVideoCodec(*i)) return true;
+  }
+
+  // If no preferred codec could be initialized, try default codec
+  if (I_TryVideoCodec(prop->vc)) return true;
+
+  // If we still didn't initialize, error out
+  lprintf(LO_WARN, "I_OpenVideoCodec: Couldn't initialize any video encoder! (use -nodraw to only dump audio)\n");
+
+  return false;
+}
+
+// Open video encoder context
+static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
+  int ret;
+
+  // Open any available video codec
+  if (!I_OpenVideoCodec(prop)) {
+    lprintf(LO_WARN, "I_OpenVideoContext: Failed to initialize any video encoder!\n");
+
+    return false;
+  }
 
   // Allocate video frame
   vid_frame = av_frame_alloc();
