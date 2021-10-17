@@ -419,44 +419,32 @@ static dboolean I_OpenVideoContext(const mux_codecprop_t *prop) {
   return true;
 }
 
-// Open audio encoder context
-static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
+// Shutdown audio encoder context
+static void I_CloseAudio(void) {
+  if (snd_ctx) avcodec_free_context(&snd_ctx);
+  if (snd_frame) av_frame_free(&snd_frame);
+
+  snd_codec = NULL;
+  snd_fmt = AV_SAMPLE_FMT_NONE;
+}
+
+// Attempt to open specific audio encoder
+static dboolean I_TryAudioCodec(enum AVCodecID c) {
   int arg, ret;
+  AVDictionary *opts = NULL;
   const enum AVSampleFormat *fmt;
 
-  // Error out if format doesn't support audio streams
-  if (prop->ac == AV_CODEC_ID_NONE) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Format doesn't support audio! (use -nosound to only dump video)\n");
-
-    return false;
-  }
-
   // Find encoder
-  snd_codec = avcodec_find_encoder(prop->ac);
+  snd_codec = avcodec_find_encoder(c);
   if (!snd_codec) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't find encoder for %s!\n", avcodec_get_name(prop->ac));
+    lprintf(LO_WARN, "I_TryAudioCodec: Couldn't find encoder for %s!\n", avcodec_get_name(c));
 
+    I_CloseAudio();
     return false;
   }
-
-  lprintf(LO_INFO, "I_OpenAudioContext: Encoding with %s\n", snd_codec->name);
-
-  // Allocate encoder context
-  snd_ctx = avcodec_alloc_context3(snd_codec);
-  if (!snd_ctx) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't allocate encoder context!\n");
-
-    return false;
-  }
-
-  // Open encoder
-  snd_ctx->channel_layout = AV_CH_LAYOUT_STEREO;
-  snd_ctx->sample_rate = snd_samplerate;
-  snd_ctx->time_base.num = 1; snd_ctx->time_base.den = snd_samplerate;
-  snd_ctx->channels = 2;
 
   // Get sample format
-  for (fmt = snd_codec->sample_fmts; *fmt > 0; ++fmt) {
+  for (fmt = snd_codec->sample_fmts; *fmt >= 0; ++fmt) {
     switch (*fmt) {
     case AV_SAMPLE_FMT_S16:
       snd_fmt = AV_SAMPLE_FMT_S16;
@@ -482,26 +470,90 @@ static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
 
   // Did we find a supported audio format?
   if (snd_fmt == AV_SAMPLE_FMT_NONE) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Encoder doesn't support s16!\n");
+    lprintf(LO_WARN, "I_TryAudioCodec: Encoder doesn't support s16!\n");
 
+    I_CloseAudio();
     return false;
   }
 
+  // Allocate encoder context
+  snd_ctx = avcodec_alloc_context3(snd_codec);
+  if (!snd_ctx) {
+    lprintf(LO_WARN, "I_TryAudioCodec: Couldn't allocate encoder context!\n");
+
+    I_CloseAudio();
+    return false;
+  }
+
+  // Open encoder
+  snd_ctx->channel_layout = AV_CH_LAYOUT_STEREO;
+  snd_ctx->sample_rate = snd_samplerate;
+  snd_ctx->time_base.num = 1; snd_ctx->time_base.den = snd_samplerate;
+  snd_ctx->channels = 2;
   snd_ctx->sample_fmt = snd_fmt;
 
   // Set audio bitrate
   if ((arg = M_CheckParm("-ab")) && (arg < myargc-1))
     snd_ctx->bit_rate = atoi(myargv[arg+1])*1024;
 
+  // Add muxer-specific options
   if (!MUX_AddOpt(snd_ctx)) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't add muxer-specific options to codec!\n");
+    lprintf(LO_WARN, "I_TryAudioCodec: Couldn't add muxer-specific options to codec!\n");
 
+    I_CloseAudio();
     return false;
   }
 
+  // Open codec
   ret = avcodec_open2(snd_ctx, snd_codec, NULL);
   if (ret < 0) {
-    lprintf(LO_WARN, "I_OpenAudioContext: Couldn't initialize codec context!\n");
+    lprintf(LO_WARN, "I_TryAudioCodec: Couldn't initialize codec!\n");
+
+    I_CloseAudio();
+    return false;
+  }
+
+  return true;
+}
+
+// Open any available audio encoder
+static dboolean I_OpenAudioCodec(const mux_codecprop_t *prop) {
+  // List of preferrable audio encoders
+  static const enum AVCodecID preferred[] = {
+    AV_CODEC_ID_OPUS, AV_CODEC_ID_MP3
+  };
+
+  const enum AVCodecID *i;
+  unsigned int tag;
+
+  // Initialize with preferred codec
+  for (i = preferred;
+       i < preferred + sizeof(preferred)/sizeof(*preferred);
+       ++i)
+  {
+    // Is this codec not supported by the format?
+    if (avformat_query_codec(prop->ofmt, *i, 0) != 1) continue;
+
+    // Can we initialize this codec?
+    if (I_TryAudioCodec(*i)) return true;
+  }
+
+  // If no preferred codec could be initialized, try default codec
+  if (I_TryAudioCodec(prop->ac)) return true;
+
+  // If we still didn't initialize, error out
+  lprintf(LO_WARN, "I_OpenAudioCodec: Couldn't initialize any audio encoder! (use -nosound to only dump video)\n");
+
+  return false;
+}
+
+// Open audio encoder context
+static dboolean I_OpenAudioContext(const mux_codecprop_t *prop) {
+  int ret;
+
+  // Open any available audio codec
+  if (!I_OpenAudioCodec(prop)) {
+    lprintf(LO_WARN, "I_OpenAudioContext: Failed to initialize any audio encoder!\n");
 
     return false;
   }
