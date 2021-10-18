@@ -221,10 +221,10 @@ static void I_AllocYUVPlaypal(void) {
   int playpalsize = W_LumpLength(W_GetNumForName(playpaldata->lump_name));
   int i;
 
-  vid_playpal = Z_Malloc(3 * playpalsize, PU_STATIC, NULL);
+  vid_playpal = Z_Malloc(playpalsize, PU_STATIC, NULL);
 
   // Parse playpal into vid_playpal
-  for (i = playpalsize*3; i > 0;) {
+  for (i = playpalsize; i > 0;) {
     i -= 3;
 
     // Read RGB palette color into YCbCr palette
