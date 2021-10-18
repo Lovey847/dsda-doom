@@ -175,7 +175,14 @@ static void (*snd_write)(const short *samples, size_t ptr, size_t numsamples);
 static int snd_cursample;
 
 // playpal in YCbCr (BT.709)
-static byte *vid_playpal = NULL;
+static struct {
+  byte *y;
+
+  union {
+    byte *b;
+    unsigned short *w;
+  } cbcr;
+} vid_playpal;
 
 // Sample writing prototypes
 static void I_WriteS16Samples(const short *samples, size_t ptr, size_t numsamples);
@@ -220,13 +227,13 @@ static void I_AllocYUVPlaypal(void) {
   byte r, g, b;
   int playpalsize = W_LumpLength(W_GetNumForName(playpaldata->lump_name));
   int i;
+  byte *y, *cbcr;
 
-  vid_playpal = Z_Malloc(playpalsize, PU_STATIC, NULL);
+  y = vid_playpal.y = Z_Malloc(playpalsize, PU_STATIC, NULL);
+  cbcr = vid_playpal.cbcr.b = vid_playpal.y + playpalsize/3;
 
   // Parse playpal into vid_playpal
-  for (i = playpalsize; i > 0;) {
-    i -= 3;
-
+  for (i = 0; i < playpalsize; i += 3, ++y, cbcr += 2) {
     // Read RGB palette color into YCbCr palette
     // Assume r, g and b are normalized from 0 to 1
     //
@@ -249,15 +256,15 @@ static void I_AllocYUVPlaypal(void) {
     // 47 = Kr*219 * 256 / 255
     // 157 = Kg*219 * 256 / 255
     // 16 = Kb*219 * 256 / 255
-    vid_playpal[i] = 16 + ((r*47)>>8) + ((g*157)>>8) + ((b*16)>>8);
+    *y = 16 + ((r*47)>>8) + ((g*157)>>8) + ((b*16)>>8);
 
     // 26 = Kr/(1-Kb) * 112 * 256 / 255
     // 87 = Kg/(1-Kb) * 112 * 256 / 255
-    vid_playpal[i+1] = 128 - ((r*26)>>8) - ((g*87)>>8) + ((b*112)>>8);
+    cbcr[0] = 128 - ((r*26)>>8) - ((g*87)>>8) + ((b*112)>>8);
 
     // 102 = Kg/(1-Kr) * 112 * 256 / 255
     // 10 = Kb/(1-Kr) * 112 * 256 / 255
-    vid_playpal[i+2] = 128 + ((r*112)>>8) - ((g*102)>>8) - ((b*10)>>8);
+    cbcr[1] = 128 + ((r*112)>>8) - ((g*102)>>8) - ((b*10)>>8);
   }
 }
 
@@ -679,7 +686,7 @@ void I_CapturePrep(const char *fn) {
 // Free anything that needs to be freed
 void I_CaptureFinish(void) {
   // Free vid_playpal
-  if (vid_playpal) Z_Free(vid_playpal);
+  if (vid_playpal.y) Z_Free(vid_playpal.y);
 
   // If we're recording, flush encoder output and write trailer to file
   if (capturing_video) {
@@ -709,17 +716,17 @@ void I_CaptureFinish(void) {
 static void I_AverageChrominance(byte *cbp, byte *crp, byte *pixels) {
   int cb, cr;
 
-  cb = vid_playpal[pixels[0]*3+1];
-  cr = vid_playpal[pixels[0]*3+2];
+  cb = vid_playpal.cbcr.b[pixels[0]*2];
+  cr = vid_playpal.cbcr.b[pixels[0]*2+1];
 
-  cb += vid_playpal[pixels[1]*3+1];
-  cr += vid_playpal[pixels[1]*3+2];
+  cb += vid_playpal.cbcr.b[pixels[1]*2];
+  cr += vid_playpal.cbcr.b[pixels[1]*2+1];
 
-  cb += vid_playpal[pixels[screens[0].pitch]*3+1];
-  cr += vid_playpal[pixels[screens[0].pitch]*3+2];
+  cb += vid_playpal.cbcr.b[pixels[screens[0].pitch]*2];
+  cr += vid_playpal.cbcr.b[pixels[screens[0].pitch]*2+1];
 
-  cb += vid_playpal[pixels[screens[0].pitch+1]*3+1];
-  cr += vid_playpal[pixels[screens[0].pitch+1]*3+2];
+  cb += vid_playpal.cbcr.b[pixels[screens[0].pitch+1]*2];
+  cr += vid_playpal.cbcr.b[pixels[screens[0].pitch+1]*2+1];
 
   *cbp = cb>>2;
   *crp = cr>>2;
@@ -775,7 +782,7 @@ static void I_EncodeVideoFrame(void) {
   ptr = vid_frame->data[0];
   for (y = 0; y < SCREENHEIGHT; ++y) {
     for (x = 0; x < SCREENWIDTH; ++x)
-      *ptr++ = vid_playpal[screens[0].data[y*screens[0].pitch + x]*3];
+      *ptr++ = vid_playpal.y[screens[0].data[y*screens[0].pitch + x]];
   }
 
   // Write chrominance
