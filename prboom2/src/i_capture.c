@@ -261,6 +261,25 @@ static void I_AllocYUVPlaypal(void) {
   }
 }
 
+// Find a codec, either an id or a name
+static AVCodec *I_FindCodec(enum AVCodecID id, const char *name) {
+  AVCodec *ret;
+
+  if (name) {
+    ret = avcodec_find_encoder_by_name(name);
+
+    if (!ret)
+      lprintf(LO_WARN, "I_FindCodec: Couldn't find %s!\n", name);
+  } else {
+    ret = avcodec_find_encoder(id);
+
+    if (!ret)
+      lprintf(LO_WARN, "I_FindCodec: Couldn't find encoder for %s!\n", avcodec_get_name(id));
+  }
+
+  return ret;
+}
+
 // Open a preferrable codec, if available
 // If none are available, try to open the default codec
 static dboolean I_OpenCodec(dboolean (*trycodec)(enum AVCodecID, const char*), const AVOutputFormat *ofmt,
@@ -301,22 +320,12 @@ static dboolean I_TryVideoCodec(enum AVCodecID c, const char *name) {
   const enum AVPixelFormat *fmt;
 
   // Find encoder
-  if (name) {
-    vid_codec = avcodec_find_encoder_by_name(name);
-    if (!vid_codec) {
-      lprintf(LO_WARN, "I_TryVideoCodec: Couldn't find %s!\n", name);
+  vid_codec = I_FindCodec(c, name);
+  if (!vid_codec) {
+    lprintf(LO_WARN, "I_TryVideoCodec: Couldn't find encoder!\n");
 
-      I_CloseVideo();
-      return false;
-    }
-  } else {
-    vid_codec = avcodec_find_encoder(c);
-    if (!vid_codec) {
-      lprintf(LO_WARN, "I_TryVideoCodec: Couldn't find encoder for %s!\n", avcodec_get_name(c));
-
-      I_CloseVideo();
-      return false;
-    }
+    I_CloseVideo();
+    return false;
   }
 
   // Find pixel format for encoder
@@ -455,22 +464,12 @@ static dboolean I_TryAudioCodec(enum AVCodecID c, const char *name) {
   const enum AVSampleFormat *fmt;
 
   // Find encoder
-  if (name) {
-    snd_codec = avcodec_find_encoder_by_name(name);
-    if (!snd_codec) {
-      lprintf(LO_WARN, "I_TryAudioCodec: Couldn't find %s!\n", name);
+  snd_codec = I_FindCodec(c, name);
+  if (!snd_codec) {
+    lprintf(LO_WARN, "I_TryAudioCodec: Couldn't find encoder!\n");
 
-      I_CloseAudio();
-      return false;
-    }
-  } else {
-    snd_codec = avcodec_find_encoder(c);
-    if (!snd_codec) {
-      lprintf(LO_WARN, "I_TryAudioCodec: Couldn't find encoder for %s!\n", avcodec_get_name(c));
-
-      I_CloseAudio();
-      return false;
-    }
+    I_CloseAudio();
+    return false;
   }
 
   // Get sample format
