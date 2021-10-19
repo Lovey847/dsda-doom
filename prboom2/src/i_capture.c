@@ -619,6 +619,19 @@ void I_CapturePrep(const char *fn) {
     return;
   }
 
+  // We can only dump in even resolutions
+  if ((SCREENWIDTH&1)|(SCREENHEIGHT&1)) {
+    lprintf(LO_WARN, "I_CapturePrep: Cannot dump in %dx%d, %s!\n",
+            SCREENWIDTH, SCREENHEIGHT,
+
+            ((SCREENWIDTH&1)&(SCREENHEIGHT&1)) ? "width and height are odd numbers" :
+            (SCREENWIDTH&1) ? "width is an odd number" : "height is an odd number");
+    capturing_video = 0;
+
+    I_CaptureFinish();
+    return;
+  }
+
   // Allocate vid_playpal
   I_AllocYUVPlaypal();
 
