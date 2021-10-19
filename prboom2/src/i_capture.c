@@ -793,6 +793,7 @@ static void I_WriteYUVChroma(void) {
   }
 
   // Cr loop
+  scr = screens[0].data;
   for (y = 0; y < SCREENHEIGHT; y += 2) {
     for (x = 0; x < SCREENWIDTH; x += 2) {
       *cr++ = ((vid_playpal.cbcr.b[scr[x  ]*2+1] >> 2) +
