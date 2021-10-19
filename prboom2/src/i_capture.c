@@ -751,6 +751,10 @@ static void I_WriteNV12Chroma(void) {
   unsigned short *ptr;
   int y, x;
 
+  // Add this to ptr to move past padding at the
+  // end of a video line
+  const size_t stride = (vid_frame->linesize[1]-SCREENWIDTH)/2;
+
   ptr = (unsigned short*)vid_frame->data[1];
   scr = screens[0].data;
 
@@ -771,6 +775,7 @@ static void I_WriteNV12Chroma(void) {
                  ((vid_playpal.cbcr.w[scr[x+1]]>>2) & 0x3f3f));
     }
 
+    ptr += stride;
     scr += screens[0].pitch;
   }
 }
@@ -782,6 +787,8 @@ static void I_WriteYUVChroma(void) {
   byte *cb, *cr;
   byte *scr;
   int y, x;
+
+  size_t stride = vid_frame->linesize[1]-SCREENWIDTH/2;
 
   cb = vid_frame->data[1];
   cr = vid_frame->data[2];
@@ -802,10 +809,12 @@ static void I_WriteYUVChroma(void) {
                 (vid_playpal.cbcr.b[scr[x+1]*2] >> 2));
     }
 
+    cb += stride;
     scr += screens[0].pitch;
   }
 
   // Cr loop
+  stride = vid_frame->linesize[2]-SCREENWIDTH/2;
   scr = screens[0].data;
   for (y = 0; y < SCREENHEIGHT; y += 2) {
     for (x = 0; x < SCREENWIDTH; x += 2) {
@@ -821,6 +830,7 @@ static void I_WriteYUVChroma(void) {
                 (vid_playpal.cbcr.b[scr[x+1]*2+1] >> 2));
     }
 
+    cr += stride;
     scr += screens[0].pitch;
   }
 }
@@ -830,6 +840,10 @@ static void I_EncodeVideoFrame(void) {
   int ret;
   int x, y;
   byte *ptr, *scr;
+
+  // Add this to ptr to move past padding at the
+  // end of a video line
+  size_t stride;
 
   // Make sure frame is writable
   ret = av_frame_make_writable(vid_frame);
@@ -842,12 +856,14 @@ static void I_EncodeVideoFrame(void) {
   //       For now, use the first playpal
 
   // Write luminance
+  stride = vid_frame->linesize[0]-SCREENWIDTH;
   ptr = vid_frame->data[0];
   scr = screens[0].data;
   for (y = 0; y < SCREENHEIGHT; ++y) {
     for (x = 0; x < SCREENWIDTH; ++x)
       *ptr++ = vid_playpal.y[scr[x]];
 
+    ptr += stride;
     scr += screens[0].pitch;
   }
 
