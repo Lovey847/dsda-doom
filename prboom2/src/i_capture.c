@@ -734,31 +734,80 @@ static void I_AverageChrominance(byte *cbp, byte *crp, byte *pixels) {
 
 // Write NV12 chrominance plane
 static void I_WriteNV12Chroma(void) {
-  byte *ptr;
+  byte *scr;
+  unsigned short *ptr;
   int y, x;
 
-  ptr = vid_frame->data[1];
+  ptr = (unsigned short*)vid_frame->data[1];
+  scr = screens[0].data;
+
   for (y = 0; y < SCREENHEIGHT; y += 2) {
     for (x = 0; x < SCREENWIDTH; x += 2) {
-      I_AverageChrominance(ptr, ptr+1, screens[0].data + y*screens[0].pitch + x);
-      ptr += 2;
+      // Get half the average of the 2 top pixels
+      *ptr++ = (((vid_playpal.cbcr.w[scr[x  ]]>>2) & 0x3f3f) +
+                ((vid_playpal.cbcr.w[scr[x+1]]>>2) & 0x3f3f));
     }
+
+    scr += screens[0].pitch;
+
+    ptr -= SCREENWIDTH/2;
+    for (x = 0; x < SCREENWIDTH; x += 2) {
+      // Add half the average of the 2 bottom pixels
+      // to get the average of all 4 pixels
+      *ptr++ += (((vid_playpal.cbcr.w[scr[x  ]]>>2) & 0x3f3f) +
+                 ((vid_playpal.cbcr.w[scr[x+1]]>>2) & 0x3f3f));
+    }
+
+    scr += screens[0].pitch;
   }
 }
 
 // Write YUV420P chrominance planes
+// Same method as nv12, but slower since cb and cr
+// are stored in different planes
 static void I_WriteYUVChroma(void) {
-  byte *ptr, *crptr;
+  byte *cb, *cr;
+  byte *scr;
   int y, x;
 
-  ptr = vid_frame->data[1];
-  crptr = vid_frame->data[2];
+  cb = vid_frame->data[1];
+  cr = vid_frame->data[2];
+  scr = screens[0].data;
+
+  // Cb loop
   for (y = 0; y < SCREENHEIGHT; y += 2) {
     for (x = 0; x < SCREENWIDTH; x += 2) {
-      I_AverageChrominance(ptr, crptr, screens[0].data + y*screens[0].pitch + x);
-      ++ptr;
-      ++crptr;
+      *cb++ = ((vid_playpal.cbcr.b[scr[x  ]*2] >> 2) +
+               (vid_playpal.cbcr.b[scr[x+1]*2] >> 2));
     }
+
+    scr += screens[0].pitch;
+
+    cb -= SCREENWIDTH/2;
+    for (x = 0; x < SCREENWIDTH; x += 2) {
+      *cb++ += ((vid_playpal.cbcr.b[scr[x  ]*2] >> 2) +
+                (vid_playpal.cbcr.b[scr[x+1]*2] >> 2));
+    }
+
+    scr += screens[0].pitch;
+  }
+
+  // Cr loop
+  for (y = 0; y < SCREENHEIGHT; y += 2) {
+    for (x = 0; x < SCREENWIDTH; x += 2) {
+      *cr++ = ((vid_playpal.cbcr.b[scr[x  ]*2+1] >> 2) +
+               (vid_playpal.cbcr.b[scr[x+1]*2+1] >> 2));
+    }
+
+    scr += screens[0].pitch;
+
+    cr -= SCREENWIDTH/2;
+    for (x = 0; x < SCREENWIDTH; x += 2) {
+      *cr++ += ((vid_playpal.cbcr.b[scr[x  ]*2+1] >> 2) +
+                (vid_playpal.cbcr.b[scr[x+1]*2+1] >> 2));
+    }
+
+    scr += screens[0].pitch;
   }
 }
 
@@ -766,7 +815,7 @@ static void I_WriteYUVChroma(void) {
 static void I_EncodeVideoFrame(void) {
   int ret;
   int x, y;
-  byte *ptr;
+  byte *ptr, *scr;
 
   // Make sure frame is writable
   ret = av_frame_make_writable(vid_frame);
@@ -780,9 +829,12 @@ static void I_EncodeVideoFrame(void) {
 
   // Write luminance
   ptr = vid_frame->data[0];
+  scr = screens[0].data;
   for (y = 0; y < SCREENHEIGHT; ++y) {
     for (x = 0; x < SCREENWIDTH; ++x)
-      *ptr++ = vid_playpal.y[screens[0].data[y*screens[0].pitch + x]];
+      *ptr++ = vid_playpal.y[scr[x]];
+
+    scr += screens[0].pitch;
   }
 
   // Write chrominance
